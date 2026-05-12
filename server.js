@@ -1191,8 +1191,8 @@ app.post("/generate_prompt", async (req, res) => {
     console.log("[generate_prompt] Waiting 10 seconds before closing…");
     await sleep(10000);
 
-    try { await page.close(); console.log("[generate_prompt] Page closed ✓"); }
-    catch (e) { console.log("[generate_prompt] Page close failed:", e.message); }
+        try { await page.close(); console.log("[generate_prompt] Page closed ✓"); }
+
 
     if (browser) { try { await browser.disconnect(); } catch {} browser = null; }
 
@@ -1204,7 +1204,7 @@ saveSessions();
 
   } catch (err) {
     console.error("[generate_prompt] ERROR:", err.message);
-    if (browser) { try { await browser.disconnect(); } catch {} browser = null; }
+    
     if (!res.headersSent)
       return res.status(500).json({ success: false, error: err.message });
   } finally {
