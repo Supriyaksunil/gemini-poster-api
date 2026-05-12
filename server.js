@@ -1188,23 +1188,26 @@ app.post("/generate_prompt", async (req, res) => {
       throw new Error("Chat URL did not change after sending prompt");
 
     console.log(`[generate_prompt] Chat URL: ${chatUrl}`);
-    console.log("[generate_prompt] Waiting 10 seconds before closing…");
-    await sleep(10000);
 
-        try { await page.close(); console.log("[generate_prompt] Page closed ✓"); }
-
-
-    if (browser) { try { await browser.disconnect(); } catch {} browser = null; }
+    // CRITICAL FIX: Don't close page or disconnect browser.
+    // The chat URL is ephemeral — closing the page invalidates it.
+    // We keep the page open so /generate can reuse it.
+    console.log("[generate_prompt] Keeping page open for /generate reuse…");
 
     const sessionId = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-sessions.set(sessionId, { chatUrl, createdAt: Date.now(), originalPrompt: prompt });
-saveSessions();
+    sessions.set(sessionId, { 
+      chatUrl, 
+      createdAt: Date.now(), 
+      originalPrompt: prompt,
+      pageKeptOpen: true  // signal that page is still alive
+    });
+    saveSessions();
     console.log(`[generate_prompt] Done → session ${sessionId}`);
     return res.json({ success: true, session_id: sessionId, chat_url: chatUrl });
 
   } catch (err) {
     console.error("[generate_prompt] ERROR:", err.message);
-    
+    if (browser) { try { await browser.disconnect(); } catch {} browser = null; }
     if (!res.headersSent)
       return res.status(500).json({ success: false, error: err.message });
   } finally {
@@ -1236,51 +1239,59 @@ app.post("/generate", async (req, res) => {
     const safeName = (company_name || "Poster").replace(/[^a-zA-Z0-9]/g, "_");
 
     await ensureChrome();
-    const page = await getPage(chatUrl);
 
-    console.log(`[generate] Navigating to: ${chatUrl}`);
-    await page.goto(chatUrl, { waitUntil: ["domcontentloaded", "networkidle2"], timeout: 60000 });
-    await waitForInput(page, 30000);
+    // CRITICAL FIX: Reuse the existing page from /generate_prompt.
+    // Chat URLs are ephemeral — navigating to them after page close redirects to /app.
+    const b = await connectBrowser();
+    const pages = await b.pages();
+
+    // Try to find the existing page with our chat
+    let page = pages.find(p => p.url().includes(chatUrl.split('/').pop()));
+
+    if (!page || page.isClosed()) {
+      console.log(`[generate] ⚠️ Existing page not found. Falling back to navigation…`);
+      page = await getPage(chatUrl);
+      await page.goto(chatUrl, { waitUntil: ["domcontentloaded", "networkidle2"], timeout: 60000 });
+    } else {
+      console.log(`[generate] ✅ Reusing existing page: ${page.url()}`);
+      // Bring to front and ensure ready
+      await page.bringToFront();
+      try {
+        await page.waitForSelector('div[contenteditable="true"]', { visible: true, timeout: 10000 });
+      } catch {
+        console.log('[generate] Input not immediately visible, continuing…');
+      }
+    }
+
     await sleep(1500);
 
     let currentUrl = page.url();
-    let urlMatchAttempts = 0;
-    const MAX_URL_MATCH_ATTEMPTS = 3;
+    console.log(`[generate] Current URL: ${currentUrl}`);
 
-    while ((!currentUrl.includes(chatUrl.split('/').pop()) || currentUrl.includes("signin")) && urlMatchAttempts < MAX_URL_MATCH_ATTEMPTS) {
-      urlMatchAttempts++;
-      console.log(`[generate] ⚠️ URL mismatch or signin! Expected: ${chatUrl}, Got: ${currentUrl}. Re-creating session (attempt ${urlMatchAttempts}/${MAX_URL_MATCH_ATTEMPTS})…`);
-      
-      // Re-run generate_prompt to get fresh session
-      await page.goto(GEMINI_BASE, { waitUntil: ["domcontentloaded", "networkidle2"], timeout: 60000 });
-      await waitForInput(page, 30000);
-      await sleep(600);
-      
+    // If chat expired (redirected to /app), recreate it
+    if (currentUrl === GEMINI_BASE || currentUrl.endsWith('/app')) {
+      console.log(`[generate] ⚠️ Chat expired. Re-creating with original prompt…`);
+
       const previousUrl = page.url();
-            await pastePrompt(page, session.originalPrompt || second_prompt);
- 
+      await pastePrompt(page, session.originalPrompt || second_prompt);
       await page.keyboard.press("Enter");
-      console.log("[generate] Re-sent prompt, waiting for new chat URL…");
-      
+
       const newChatUrl = await waitForChatUrl(page, previousUrl, 60000);
       if (newChatUrl && newChatUrl !== GEMINI_BASE) {
         chatUrl = newChatUrl;
-                sessions.set(session_id, { chatUrl: newChatUrl, createdAt: Date.now(), originalPrompt: session.originalPrompt });
+        sessions.set(session_id, { chatUrl: newChatUrl, createdAt: Date.now(), originalPrompt: session.originalPrompt });
+        saveSessions();
         console.log(`[generate] New chat URL: ${newChatUrl}`);
+      } else {
+        throw new Error('Failed to recreate chat session');
       }
-      
-      await page.goto(chatUrl, { waitUntil: ["domcontentloaded", "networkidle2"], timeout: 60000 });
-      await sleep(2000);
+
+      await sleep(1500);
       currentUrl = page.url();
     }
 
-    if (!currentUrl.includes(chatUrl.split('/').pop())) {
-      throw new Error(`Failed to land on chat after ${MAX_URL_MATCH_ATTEMPTS} attempts. Last URL: ${currentUrl}`);
-    }
-
-    console.log(`[generate] On page: ${currentUrl}`);
-
-    const knownSrcs = await snapshotAllImgSrcs(page);
+    console.log(`[generate] Ready on: ${currentUrl}`);
+const knownSrcs = await snapshotAllImgSrcs(page);
     console.log(`[generate] Known images: ${knownSrcs.length}`);
 
     // ── START LISTENER BEFORE SENDING PROMPT ──────────────────────────────
@@ -1336,9 +1347,10 @@ app.post("/generate", async (req, res) => {
     const brightness = await imageBrightness(imgPath);
     const finalUrl   = page.url();
 
-    if (browser) { try { await browser.disconnect(); } catch {} browser = null; }
-    // sessions.delete(session_id);
-saveSessions();
+    // Don't disconnect browser — keep alive for potential /edit calls
+    // if (browser) { try { await browser.disconnect(); } catch {} browser = null; }
+    sessions.delete(session_id);
+    saveSessions();
     sendImageFile(res, imgPath, { "X-Image-Brightness": brightness, "X-Chat-Url": finalUrl });
     console.log("[generate] Done ✓");
 
