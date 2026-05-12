@@ -18,10 +18,42 @@ const sharp           = require("sharp");
 // ─────────────────────────────────────────────
 //  CONFIG
 // ─────────────────────────────────────────────
+
+
+const SESSIONS_FILE = path.join(__dirname, 'sessions.json');
+
+const loadSessions = () => {
+  try {
+    if (fs.existsSync(SESSIONS_FILE)) {
+      const data = JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf8'));
+      for (const [id, s] of Object.entries(data)) {
+        sessions.set(id, s);
+      }
+      console.log(`[Sessions] Loaded ${sessions.size} sessions from disk`);
+    }
+  } catch (e) {
+    console.log('[Sessions] Load failed:', e.message);
+  }
+};
+
+const saveSessions = () => {
+  try {
+    const data = Object.fromEntries(sessions);
+    fs.writeFileSync(SESSIONS_FILE, JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.log('[Sessions] Save failed:', e.message);
+  }
+};
+
+// Load on startup
+loadSessions();
+
+// Save every 30 seconds
+setInterval(saveSessions, 30000);
 const CFG = {
   CHROME_PORT    : 9222,
   USER_DATA_DIR  : "/tmp/chrome-debug",           // ← Linux temp path
-  CHROME_PATH    : process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
+  CHROME_PATH    : process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/google-chrome-stable",
   LOGOS_DIR      : path.join(__dirname, "logos"),
   LOGOS          : { white: "ai360d.png", blue: "ai360d.png", black: "ai360d.png" },
   IMAGE_WAIT_MS  : 120000,
@@ -1166,6 +1198,7 @@ app.post("/generate_prompt", async (req, res) => {
 
     const sessionId = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 sessions.set(sessionId, { chatUrl, createdAt: Date.now(), originalPrompt: prompt });
+saveSessions();
     console.log(`[generate_prompt] Done → session ${sessionId}`);
     return res.json({ success: true, session_id: sessionId, chat_url: chatUrl });
 
@@ -1305,7 +1338,7 @@ app.post("/generate", async (req, res) => {
 
     if (browser) { try { await browser.disconnect(); } catch {} browser = null; }
     sessions.delete(session_id);
-
+saveSessions();
     sendImageFile(res, imgPath, { "X-Image-Brightness": brightness, "X-Chat-Url": finalUrl });
     console.log("[generate] Done ✓");
 
