@@ -1337,7 +1337,7 @@ app.post("/generate", async (req, res) => {
     const finalUrl   = page.url();
 
     if (browser) { try { await browser.disconnect(); } catch {} browser = null; }
-    sessions.delete(session_id);
+    // sessions.delete(session_id);
 saveSessions();
     sendImageFile(res, imgPath, { "X-Image-Brightness": brightness, "X-Chat-Url": finalUrl });
     console.log("[generate] Done ✓");
