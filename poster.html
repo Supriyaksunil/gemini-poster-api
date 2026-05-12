@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<style>
+
+body{
+  width:1080px;
+  height:1080px;
+  margin:0;
+  font-family:Arial, Helvetica, sans-serif;
+  background:url("bg.jpg") center/cover no-repeat;
+  color:white;
+  position:relative;
+}
+
+/* dark overlay */
+.overlay{
+  position:absolute;
+  inset:0;
+  background:rgba(0,0,0,0.65);
+}
+
+/* content */
+.container{
+  position:absolute;
+  inset:0;
+  padding:70px;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+}
+
+/* heading */
+.title{
+  font-size:64px;
+  font-weight:900;
+  line-height:1.1;
+  text-transform:uppercase;
+}
+
+.subtitle{
+  font-size:28px;
+  color:#ffd166;
+  margin-top:20px;
+}
+
+/* services box */
+.services{
+  background:rgba(255,255,255,0.1);
+  padding:30px;
+  border-radius:20px;
+  width:60%;
+  backdrop-filter: blur(6px);
+}
+
+.services h3{
+  font-size:30px;
+  margin-bottom:15px;
+}
+
+.services ul{
+  font-size:24px;
+  line-height:1.6;
+}
+
+/* footer */
+.footer{
+  font-size:22px;
+  display:flex;
+  justify-content:space-between;
+  background:rgba(0,0,0,0.7);
+  padding:20px;
+  border-radius:15px;
+}
+
+</style>
+</head>
+
+<body>
+<div class="overlay"></div>
+
+<div class="container">
+
+  <div>
+    <div class="title" id="company"></div>
+    <div class="subtitle">Find Your Career Success With Us</div>
+  </div>
+
+  <div class="services">
+    <h3>WE SPECIALIZE IN</h3>
+    <ul id="services"></ul>
+  </div>
+
+  <div class="footer">
+    <span id="website"></span>
+    <span id="phone"></span>
+    <span id="email"></span>
+  </div>
+
+</div>
+</body>
+</html>

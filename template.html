@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+
+<!-- Bootstrap -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<!-- Professional Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;900&family=Poppins:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+}
+
+/* ===== FIXED POSTER CANVAS ===== */
+body{
+  width:1080px;
+  height:1080px;
+  overflow:hidden;
+}
+
+/* ===== POSTER BASE ===== */
+.poster{
+  position:relative;
+  width:1080px;
+  height:1080px;
+
+  background:url("bg.jpg") center/cover no-repeat;
+
+  color:white;
+  padding:80px;
+}
+
+/* ===== DARK OVERLAY (NO BLUR NOW) ===== */
+.overlay{
+  position:absolute;
+  inset:0;
+  background:rgba(10,25,45,0.82); /* clean dark */
+}
+
+/* bring content above overlay */
+.content{
+  position:relative;
+  z-index:2;
+  height:100%;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+}
+
+/* ===== TITLE ===== */
+.company{
+  font-family:'Montserrat', sans-serif;
+  font-size:92px;
+  font-weight:900;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  line-height:1.05;
+}
+
+/* ===== TAGLINE ===== */
+.tagline{
+  font-family:'Poppins', sans-serif;
+  font-size:34px;
+  color:#ffc857;
+  margin-top:18px;
+}
+
+/* ===== SERVICES CARD ===== */
+.servicesBox{
+  background:rgba(255,255,255,0.10);
+  padding:35px 40px;
+  border-radius:20px;
+  width:70%;
+}
+
+.servicesBox h3{
+  font-family:'Montserrat', sans-serif;
+  font-size:32px;
+  margin-bottom:15px;
+  text-transform:uppercase;
+}
+
+.servicesBox ul{
+  list-style:none;
+  padding:0;
+}
+
+.servicesBox li{
+  font-family:'Poppins', sans-serif;
+  font-size:26px;
+  margin:10px 0;
+  position:relative;
+  padding-left:20px;
+}
+
+/* custom bullet */
+.servicesBox li::before{
+  content:"•";
+  color:#ffc857;
+  position:absolute;
+  left:0;
+}
+
+/* ===== FOOTER ===== */
+.footer{
+  background:#163b5f;
+  padding:25px 40px;
+  border-radius:10px;
+
+  font-family:'Poppins', sans-serif;
+  font-size:24px;
+
+  display:flex;
+  justify-content:space-between;
+}
+</style>
+</head>
+
+<body>
+
+<div class="poster">
+
+  <div class="overlay"></div>
+
+  <div class="content container-fluid">
+
+    <!-- TOP SECTION -->
+    <div>
+      <div id="company" class="company">COMPANY NAME</div>
+      <div class="tagline">Find Your Career Success With Us</div>
+    </div>
+
+    <!-- SERVICES SECTION -->
+    <div class="servicesBox">
+      <h3>WE SPECIALIZE IN</h3>
+      <ul id="services">
+        <li>Service One</li>
+        <li>Service Two</li>
+      </ul>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="footer">
+      <span id="website">website.com</span>
+      <span id="phone">+91 0000000000</span>
+      <span id="email">info@email.com</span>
+    </div>
+
+  </div>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,324 @@
+1.ALLY INTERNATIONAL COMPLIANCE FORTRESS POSTER — ZERO ERROR TOLERANCE
+TEXT DATABASE — COPY ONLY
+T1: Licensed by India. Accountable to You. Trusted Since 1979.
+T2: DON'T RISK YOUR SAUDI JOB WITH UNLICENSED AGENTS
+T3: Ally International — Govt. of India Recognized Since 1979:
+T4: Licensed Wakala Processing
+T5: Protector of Emigrants (POE) Clearance
+T6: Complete Emigration Clearance (EC)
+T7: Document Attestation & Verification
+T8: Insurance Compliance
+T9: Visa Stamping to Onboarding
+T10: License No: B-0601/MUM/PART/1000+/5/2181/1987 | Govt. Recognized | 45+ Years
+T11: All-inclusive @ ₹2,499/- (GST Included)
+T12: WhatsApp: +91 90048 62181
+T13: visa@allyinternational.in | www.allyinternational.in
+VISUAL CONCEPT — COMPLIANCE FORTRESS
+Background: Single photograph or design spanning entire canvas edge to edge. Government building architecture. Official seal embossing effects. License document close-ups. Verified badges as environmental elements. Institutional blue dominant. Stamp red accents. Security silver highlights. Full bleed. No border.
+OUTPUT RULES
+Rule 1: Output is single image file. No border. No frame. No white edge. Background touches all four sides of image boundary. Full bleed mandatory(important).
+Rule 2: Background is government institutional aesthetic. Official architecture. Seal embossing visual texture. License documents as environmental graphics. Verified badges integrated. Full coverage. No surrounding color.
+Rule 3: Top 15% of image height contains zero text. Background only.
+Rule 4: Right 5% of image width contains zero text. Background only.
+Rule 5: Text T1 centered. Professional serif or semi-serif. Authority weight. Placed directly on background. Soft shadow or 8% opacity overlay for readability.
+Rule 6: Text T2 below T1. High contrast. Urgent visual weight. Institutional blue and stamp red accents permitted.
+Rule 7: Text T3 below T2.
+Rule 8: Six service items T4 through T9 below T3. Layout rotates each generation:
+Style 1: Centered vertical stack
+Style 2: Left-aligned structured list
+Style 3: Balanced two-column grid
+Style 4: Offset two-column grid
+Style 5: Wide horizontal row blocks
+Style 6: Minimal boxed grid
+Zero degree rotation. Subtle background treatment only. Shield or checkmark icon left of each. Bold title. No description text. No extra words.
+Rule 9: Text T10 below services. License number exact. Horizontal format. Icons for license, government, years.
+Rule 10: Text T11 below T10. Price prominent. All-inclusive emphasized.
+Rule 11: Text T12 and T13 at bottom. T12 left with phone icon. T13 right with email and globe icons. Above bottom 18% watermark-safe zone.
+Rule 12: CTA above footer. Transparent background. Thin outline or soft shadow. Text: "Verify Our License" or "Choose Certified Processing".
+COLOR SYSTEM
+Institutional blue: Dominant, trust, authority
+Stamp red: Accents for official seals, urgency, validation
+Security silver: Highlights for badges, verification elements
+White: Clarity and text contrast
+No additional colors.
+FORBIDDEN
+No border of any thickness. No solid color panel covering large areas. No modification of text strings. No autocorrection. No price changes. No merged letters. No extra text. No missing text. No license number alterations. No unofficial color schemes.
+VERIFICATION CHECKLIST
+[ ] T1 matches exactly: Licensed by India. Accountable to You. Trusted Since 1979.
+[ ] T2 matches exactly: DON'T RISK YOUR SAUDI JOB WITH UNLICENSED AGENTS
+[ ] T3 matches exactly: Ally International — Govt. of India Recognized Since 1979:
+[ ] T4 through T9 match exactly with no additions
+[ ] T10 license number matches exactly: B-0601/MUM/PART/1000+/5/2181/1987
+[ ] T11 matches exactly with @ and ₹: All-inclusive @ ₹2,499/- (GST Included)
+[ ] T12 matches exactly: WhatsApp: +91 90048 62181
+[ ] T13 matches exactly: visa@allyinternational.in | www.allyinternational.in
+[ ] No white border visible
+[ ] Background extends to all edges
+[ ] Government institutional aesthetic clear
+[ ] Verified badges present
+Generate image. No explanation. No watermark. include a professional employee with welcoming posture in background
+
+
+
+
+
+
+
+
+
+
+
+2. ALLY INTERNATIONAL VILLAGE TO RIYADH POSTER — ZERO ERROR TOLERANCE
+TEXT DATABASE — COPY ONLY
+T1: Gaon Se Riyad Tak, Har Kadam Pe Saath
+T2: SAUDI JOB VISA PROCESSING REACHES YOUR TOWN @ ₹2,499/- (GST Included)
+T3: Ally International brings the complete process to your doorstep:
+T4: Regional Language Counseling
+T5: Document Collection from Your Location
+T6: Video Verification for Remote Areas
+T7: Saudi Wakala Job Visa Processing
+T8: POE & Emigration Clearance
+T9: Travel Insurance & Departure Guidance
+T10: Serving 28 States | 45+ Years Experience | Govt. of India Recognized Agency
+T11: WhatsApp Your City: +91 90048 62181
+T12: visa@allyinternational.in | www.allyinternational.in
+VISUAL CONCEPT — VILLAGE TO SKYLINE TRANSITION
+Background: Single photograph or composite design spanning entire canvas edge to edge. Indian village landscape on left transitioning via bridge visual to Saudi city skyline on right. Regional map pins marking Bihar, UP, Kerala, Tamil Nadu. Local dialect text bubbles integrated into scene. Earth tones dominant. Hope blue accents. Sand gold highlights. Full bleed. No border.
+OUTPUT RULES
+Rule 1: Output is single image file. No border. No frame. No white edge. Background touches all four sides of image boundary. Full bleed mandatory.
+Rule 2: Background is village to skyline transition. Left side Indian rural landscape. Center bridge visual connection. Right side Saudi urban skyline. Map pins for Bihar, UP, Kerala, Tamil Nadu. Dialect text bubbles as environmental elements. Full coverage. No surrounding color.
+Rule 3: Top 15% of image height contains zero text. Background only.
+Rule 4: Right 5% of image width contains zero text. Background only.
+Rule 5: Text T1 centered. Roman alphabet only. No Devanagari script. Professional semi-serif. Placed directly on background. Soft shadow or 8% opacity overlay for readability.
+Rule 6: Text T2 below T1. Clean hierarchy. Price prominent. Rupee symbol and GST Included included exactly as written.
+Rule 7: Text T3 below T2.
+Rule 8: Six service items T4 through T9 below T3. Layout rotates each generation:
+Style 1: Centered vertical stack
+Style 2: Left-aligned structured list
+Style 3: Balanced two-column grid
+Style 4: Offset two-column grid
+Style 5: Wide horizontal row blocks
+Style 6: Minimal boxed grid
+Zero degree rotation. Subtle background treatment only. Checkmark icon left of each. Bold title. No description text. No extra words.
+Rule 9: Text T10 below services. Horizontal format. Icons for each segment.
+Rule 10: Text T11 and T12 at bottom. T11 left with phone icon. T12 right with email and globe icons. Above bottom 18% watermark-safe zone.
+Rule 11: CTA above footer. Transparent background. Thin outline or soft shadow. Text: "Start Your Journey" or "Apply From Your Village".
+COLOR SYSTEM
+Earth tones: Brown, terracotta, olive dominant
+Hope blue: Accents for trust and aspiration
+Sand gold: Highlights for value and warmth
+White: Clarity and text contrast
+No additional colors.
+FORBIDDEN
+No border of any thickness. No solid color panel covering large areas. No modification of text strings. No autocorrection. No price changes. No merged letters. No extra text. No missing text. No Devanagari script in output. No golden hour lighting.
+VERIFICATION CHECKLIST
+[ ] T1 matches exactly: Gaon Se Riyad Tak, Har Kadam Pe Saath
+[ ] T2 matches exactly with @ and ₹: SAUDI JOB VISA PROCESSING REACHES YOUR TOWN @ ₹2,499/- (GST Included)
+[ ] T3 matches exactly: Ally International brings the complete process to your doorstep:
+[ ] T4 through T9 match exactly with no additions
+[ ] T10 matches exactly: Serving 28 States | 45+ Years Experience | Govt. of India Recognized Agency
+[ ] T11 matches exactly: WhatsApp Your City: +91 90048 62181
+[ ] T12 matches exactly: visa@allyinternational.in | www.allyinternational.in
+[ ] No white border visible
+[ ] Background extends to all edges
+[ ] Village to skyline transition clear
+[ ] Map pins for Bihar, UP, Kerala, Tamil Nadu visible
+[ ] No Devanagari script generated
+Generate image. No explanation. No watermark.Include a professional employee with welcoming posture(dont put above the text)
+
+
+
+
+
+
+
+
+ 3.COMMERCIAL POSTER PROMPT FOR ALLY INTERNATIONAL
+
+PRIORITY ONE ABSOLUTE SPELLING ACCURACY AND CHARACTER SEPARATION
+
+Every text element must match exact strings below. Each letter must be distinct and fully formed. No merged letters. No touching characters. No ligatures causing combination. Proper spacing between all characters.
+
+STRING LIBRARY USE THESE EXACT STRINGS ONLY WITH SEPARATE CLEAR LETTERS
+
+Tagline Line One
+Visa Sirf Shuruvat Hai,
+
+Tagline Line Two
+Safar Ki Zim me da ri Hamari
+
+Note on Zim me da ri: Render as two clear m letters with visible separation. Z-i-m-m-e-d-a-r-i. Both m characters fully distinct.
+
+Offer Line
+Saudi Job Visa + Complete Emigration Clearance
+
+Price Line
+2,499 + GST and MOFA charges
+
+Differentiator
+Ally International handles what others ignore:
+
+Service One
+Saudi Wakala Job Visa Processing
+
+Service Two
+Protector of Emigrants (POE) Clearance
+
+Service Three
+Complete Emigration Clearance (EC)
+
+Service Four
+Insurance Assistance
+
+Service Five
+Pre-Departure Briefing
+
+Service Six
+Onboarding Coordination
+
+Credibility Left
+Available Across India
+
+Credibility Center
+Govt. of India Recognized
+
+Credibility Right
+Licensed Operator: B-0601/MUM/PART/1000+/5/2181/1987
+
+Footer Left
+WhatsApp: +91 90048 62181
+
+Footer Right
+www.allyinternational.in
+
+TYPOGRAPHY RULES FOR CHARACTER CLARITY
+
+Use font with clear letter separation. No decorative ligatures. No cursive connections. No compressed kerning. Each character must stand alone with visible space between identical letters. Double letters such as mm nn ll tt must show two complete separate forms.
+
+ERROR PREVENTION
+
+Incorrect Zimedari or Zimhedari or Zimbedari or Zimmedari with merged letters
+Correct Zim me da ri with two distinct m characters
+
+Incorrect Shuruvat or Shuruat
+Correct Shuruvat
+
+Incorrect Emijgration
+Correct Emigration
+
+Incorrect Acress or Aross
+Correct Across
+
+OUTPUT SPECIFICATIONS
+
+Single image file. Full bleed to all edges. Image touches top edge bottom edge left edge right edge with zero gap. No canvas. No border of any kind. No thin line. No frame. No rounded corners. No margin. No padding. Background photograph extends completely to every edge.
+
+BACKGROUND IMAGE FULL BLEED MANDATORY
+
+Single photograph covering entire canvas from edge to edge. Airport departure gate environment. EC CLEARED signage. Deep navy structural elements. Immigration gold accent lighting. White surfaces. Neutral professional daylight. No sunset. No warm tones.
+
+People presentation pleasant welcoming posture
+Single professional man standing confidently with warm approachable expression open body language slight smile direct eye contact welcoming stance
+Single professional woman standing confidently with warm approachable expression open body language slight smile direct eye contact welcoming stance
+Two to three diverse professionals collaborating naturally with positive engaged expressions cooperative body language
+
+Each generation completely different gate location camera angle ethnicity clothing colors architectural framing lighting setup. No repeated patterns.
+
+EMPTY ZONES
+
+Top fifteen percent of canvas height zero text zero graphics background image only
+Right five percent of canvas width zero text zero elements background image only
+Bottom eighteen percent watermark safe zone minimal elements
+
+TEXT PLACEMENT DIRECTLY ON BACKGROUND IMAGE
+
+All text placed directly on photograph. No solid panels. No color blocks behind text. Subtle support only for readability.
+
+Tagline centered horizontal vertical center. Tagline Line One above Tagline Line Two. Professional semi-serif font. Clear letter separation. Soft very light blur or five to ten percent opacity dark overlay or subtle text shadow. Background image remains fully visible through text area.
+
+Below tagline Offer Line. Below that rupee symbol with Price Line.
+
+Below price Differentiator.
+
+SERVICES SECTION PROFESSIONAL STYLING
+
+Layout rotates each generation through six styles. Never same style consecutively.
+
+Style one elegant centered vertical stack with generous spacing
+Style two refined left aligned column with clear hierarchy
+Style three balanced two column grid equal visual weight
+Style four intentional offset two column grid with rhythm
+Style five wide horizontal cards with substantial padding
+Style six minimal grid with subtle depth cues
+
+Service cards placed directly on background image. Very subtle background treatment only. Light translucent layer or soft shadow. No solid color blocks.
+
+Each card contains optional clean icon left side. Service title in bold clear font. No description text. No subtitles. Zero degree rotation. Generous internal spacing. Clear separation between cards. No overlap.
+
+Service titles use exact strings Service One through Service Six. Clear character separation on all text especially double letters.
+
+Below services Credibility Left pipe Credibility Center pipe Credibility Right placed directly on background.
+
+FOOTER DIRECTLY ON BACKGROUND IMAGE
+
+Above bottom eighteen percent zone. Left of right five percent margin.
+
+Footer Left with phone icon. Footer Right with globe icon.
+
+CTA above footer transparent background thin outline matching text color or soft shadow only. No filled shape. No colored rectangle.
+
+PROHIBITED ELEMENTS
+
+No company name in header area. No logo generation. No logo placement. No solid header bars. No white panels. No golden lighting. No duplicate text. No rotated cards. No overlapping elements. No description text under services. No filled buttons. No borders of any thickness. No frames. No canvas separation. No margin around image. No background color surrounding photograph.
+
+COLORS
+
+Deep navy dominant. Immigration gold accents. White for text clarity. No additional colors.
+
+FINAL VERIFICATION
+
+Image touches all four edges with photograph
+Zero border visible
+Top fifteen percent empty of text
+Right five percent margin empty of text
+Services professionally styled on background image
+All spellings match string library exactly
+Double letters clearly separate especially mm in Zim me da ri
+People in pleasant welcoming posture
+Layout style differs from previous generation
+CTA transparent background only
+Neutral color grading
+
+Generate single poster image. No explanatory text. No watermark.
+
+
+
+
+
+
+
+
+
+
+
+4.Act like a professional poster content creator. Create a poster for ally international with zero spelling mistakes.
+The Emigration Authority
+Visual Concept: Airport departure gate aesthetic with digital boarding pass elements, emigration stamp graphics, and a clear "EC Cleared" badge design. Deep navy + immigration gold + white.
+
+Tagline (Hindi): "Visa Sirf Shuruaat Hai, Safar Ki Zimmedari Hamari"
+(The visa is just the beginning, the journey is our responsibility)
+
+🛫 Saudi Job Visa + Complete Emigration Clearance @ ₹2,499/- (GST Included)
+
+Ally International handles what others ignore:
+✅ Saudi Wakala Job Visa Processing
+✅ Protector of Emigrants (POE) Clearance
+✅ Complete Emigration Clearance (EC)
+✅ Insurance Assistance
+✅ Pre-Departure Briefing
+✅ Onboarding Coordination
+
+📍 Available Across India | 🏛️ Govt. of India Recognized | 📜 Licensed Operator: B-0601/MUM/PART/1000+/5/2181/1987
+
+📲 WhatsApp: +91 90048 62181
+📧 visa@allyinternational.in | 🌐 www.allyinternational.in
