@@ -52,22 +52,29 @@ let chromePid = null;
 // ─────────────────────────────────────────────
 //  COOKIE LOADER
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+//  COOKIE LOADER (handles both JSON and Netscape)
+// ─────────────────────────────────────────────
 const loadCookies = () => {
   try {
     // Try loading from gemini-cookies.json first
     const cookiePath = path.join(__dirname, "gemini-cookies.json");
     if (fs.existsSync(cookiePath)) {
-      const cookies = JSON.parse(fs.readFileSync(cookiePath, "utf8"));
-      console.log(`[Cookies] Loaded ${cookies.length} cookies from gemini-cookies.json`);
+      const content = fs.readFileSync(cookiePath, "utf8").trim();
+      
+      // Check if it's Netscape format (starts with #)
+      if (content.startsWith("#")) {
+        console.log("[Cookies] Detected Netscape format, parsing...");
+        return parseNetscapeCookies(content);
+      }
+      
+      // Otherwise parse as JSON
+      const cookies = JSON.parse(content);
+      console.log(`[Cookies] Loaded ${cookies.length} cookies from gemini-cookies.json (JSON)`);
       return cookies;
     }
   } catch (e) {
     console.log("[Cookies] Failed to load gemini-cookies.json:", e.message);
-  }
-  
-  // Fallback to environment variable
-  if (GEMINI_COOKIES) {
-    return parseNetscapeCookies(GEMINI_COOKIES);
   }
   
   return [];
