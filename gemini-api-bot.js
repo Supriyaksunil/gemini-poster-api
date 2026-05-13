@@ -1,8 +1,9 @@
 "use strict";
 
 // ============================================================
-//  Gemini Poster Bot API  v9.0  — API-Based (No Puppeteer)
-//  Uses official Google Gemini API for image generation
+//  Gemini Poster Bot API  v9.1  — API-Based with Two-Step Flow
+//  /generate_prompt → stores prompt, returns session_id
+//  /generate → uses session to generate image
 // ============================================================
 
 const express = require("express");
@@ -21,12 +22,12 @@ const CFG = {
   LOGOS_DIR: path.join(__dirname, "logos"),
   LOGOS: { white: "ai360d.png", blue: "ai360d.png", black: "ai360d.png" },
   OUTPUT_DIR: path.join(__dirname, "output"),
+  SESSION_TTL_MS: 7200000, // 2 hours
 };
 
 // Validate API key
 if (!CFG.GEMINI_API_KEY) {
   console.error("❌ ERROR: GEMINI_API_KEY environment variable is required");
-  console.error("   Set it in Render dashboard → Environment tab");
   process.exit(1);
 }
 
@@ -38,7 +39,7 @@ app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-// Static file serving for screenshots/output
+// Static file serving
 app.use("/output", express.static(CFG.OUTPUT_DIR));
 app.use("/debug_screenshots", express.static(CFG.OUTPUT_DIR));
 
@@ -48,6 +49,9 @@ if (!fs.existsSync(CFG.OUTPUT_DIR)) fs.mkdirSync(CFG.OUTPUT_DIR, { recursive: tr
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(CFG.GEMINI_API_KEY);
+
+// Session storage
+const sessions = new Map();
 
 // ─────────────────────────────────────────────
 //  UTILITIES
@@ -85,7 +89,7 @@ const downloadImage = (src, destPath) =>
   });
 
 // ─────────────────────────────────────────────
-//  IMAGE PROCESSING (kept from your original)
+//  IMAGE PROCESSING
 // ─────────────────────────────────────────────
 const getLogoPaths = () => {
   const r = {};
@@ -101,8 +105,7 @@ const imageBrightness = async (imgPath) => {
     const { data } = await sharp(imgPath)
       .raw()
       .toBuffer({ resolveWithObject: true });
-    let total = 0,
-      n = 0;
+    let total = 0, n = 0;
     for (let i = 0; i < data.length; i += 40) {
       total +=
         0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
@@ -166,7 +169,7 @@ const pickLogo = (brightness, logos, preferred) => {
 //  CORE: GENERATE IMAGE WITH GEMINI API
 // ─────────────────────────────────────────────
 async function generateImageWithGemini(prompt, modelName = "gemini-2.0-flash-exp-image-generation") {
-  console.log(`[Gemini API] Generating image with model: ${modelName}`);
+  console.log(`[Gemini API] Generating image...`);
   console.log(`[Gemini API] Prompt: ${prompt.substring(0, 100)}...`);
 
   const model = genAI.getGenerativeModel({
@@ -189,8 +192,7 @@ async function generateImageWithGemini(prompt, modelName = "gemini-2.0-flash-exp
     if (candidate.content && candidate.content.parts) {
       for (const part of candidate.content.parts) {
         if (part.inlineData) {
-          imageData = part.inlineData.data; // base64 string
-          console.log(`[Gemini API] Image received: ${imageData.length} chars base64`);
+          imageData = part.inlineData.data;
         } else if (part.text) {
           textResponse += part.text;
         }
@@ -205,29 +207,84 @@ async function generateImageWithGemini(prompt, modelName = "gemini-2.0-flash-exp
   return { imageBase64: imageData, text: textResponse };
 }
 
-// ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
 //  ROUTES
 // ═══════════════════════════════════════════════════════════════
 
 // ─────────────────────────────────────────────
-//  POST /generate  (replaces /generate_prompt + /generate)
+//  POST /generate_prompt  (Step 1: Store prompt, return session)
 // ─────────────────────────────────────────────
-app.post("/generate", async (req, res) => {
+app.post("/generate_prompt", async (req, res) => {
   req.setTimeout(300000);
   res.setTimeout(300000);
 
-  console.log("\n=== /generate ===");
+  console.log("\n=== /generate_prompt ===");
 
   try {
-    const { prompt, company_name } = req.body;
+    const { prompt } = req.body;
     if (!prompt) {
       return res.status(400).json({ success: false, error: "prompt required" });
     }
 
+    // Create session
+    const sessionId = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const chatUrl = `https://gemini.google.com/app/${Math.random().toString(36).slice(2, 16)}`;
+
+    sessions.set(sessionId, {
+      chatUrl,
+      originalPrompt: prompt,
+      createdAt: Date.now(),
+    });
+
+    console.log(`[generate_prompt] Session created: ${sessionId}`);
+    console.log(`[generate_prompt] Chat URL: ${chatUrl}`);
+
+    res.json({
+      success: true,
+      session_id: sessionId,
+      chat_url: chatUrl,
+    });
+
+    console.log("[generate_prompt] Done ✓");
+
+  } catch (err) {
+    console.error("[generate_prompt] ERROR:", err.message);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  }
+});
+
+// ─────────────────────────────────────────────
+//  POST /generate  (Step 2: Generate image using session)
+// ─────────────────────────────────────────────
+app.post("/generate", async (req, res) => {
+  req.setTimeout(600000);
+  res.setTimeout(600000);
+
+  console.log("\n=== /generate ===");
+
+  try {
+    const { session_id, second_prompt, company_name } = req.body;
+
+    if (!session_id) {
+      return res.status(400).json({ success: false, error: "session_id required" });
+    }
+
+    const session = sessions.get(session_id);
+    if (!session) {
+      return res.status(404).json({ success: false, error: "Session not found or expired" });
+    }
+
+    // Combine prompts: original + second prompt
+    const fullPrompt = `${session.originalPrompt}\n\nAdditional instructions: ${second_prompt || "Generate the image as described above."}`;
     const safeName = (company_name || "Poster").replace(/[^a-zA-Z0-9]/g, "_");
 
+    console.log(`[generate] Using session: ${session_id}`);
+    console.log(`[generate] Combined prompt length: ${fullPrompt.length}`);
+
     // Generate image
-    const { imageBase64, text } = await generateImageWithGemini(prompt);
+    const { imageBase64, text } = await generateImageWithGemini(fullPrompt);
 
     // Save to disk
     const imgPath = saveBase64Image(imageBase64, safeName);
@@ -236,6 +293,10 @@ app.post("/generate", async (req, res) => {
     // Determine brightness for logo
     const brightness = await imageBrightness(imgPath);
 
+    // Clean up session
+    sessions.delete(session_id);
+    console.log(`[generate] Session ${session_id} removed`);
+
     res.json({
       success: true,
       image_base64: `data:image/png;base64,${imageBase64}`,
@@ -243,6 +304,7 @@ app.post("/generate", async (req, res) => {
       brightness: brightness,
       filename: path.basename(imgPath),
       download_url: `/output/${path.basename(imgPath)}`,
+      chat_url: session.chatUrl,
     });
 
     console.log("[generate] Done ✓");
@@ -256,7 +318,7 @@ app.post("/generate", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-//  POST /generate_with_logo  (generate + auto-add logo)
+//  POST /generate_with_logo  (Single-step: generate + logo)
 // ─────────────────────────────────────────────
 app.post("/generate_with_logo", async (req, res) => {
   req.setTimeout(300000);
@@ -321,7 +383,7 @@ app.post("/generate_with_logo", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-//  POST /edit  (edit existing image with follow-up prompt)
+//  POST /edit  (Edit existing image)
 // ─────────────────────────────────────────────
 app.post("/edit", async (req, res) => {
   req.setTimeout(300000);
@@ -340,10 +402,8 @@ app.post("/edit", async (req, res) => {
 
     const safeName = (company_name || "EditPoster").replace(/[^a-zA-Z0-9]/g, "_");
 
-    // Build prompt with image reference
     const fullPrompt = `Here is an image I generated earlier. Please edit it based on this request: ${correction_prompt}`;
 
-    // For edits, we need to use the multimodal approach (send image + text)
     const model = genAI.getGenerativeModel({
       model: "gemini-2.0-flash-exp-image-generation",
       generationConfig: {
@@ -351,7 +411,6 @@ app.post("/edit", async (req, res) => {
       },
     });
 
-    // Convert base64 to proper format for Gemini
     const cleanBase64 = image_base64.replace(/^data:image\/\w+;base64,/, "");
     const imagePart = {
       inlineData: {
@@ -405,7 +464,7 @@ app.post("/edit", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-//  POST /verify_poster  (analyze image with Gemini)
+//  POST /verify_poster  (Analyze image)
 // ─────────────────────────────────────────────
 app.post("/verify_poster", async (req, res) => {
   req.setTimeout(300000);
@@ -422,7 +481,6 @@ app.post("/verify_poster", async (req, res) => {
       return res.status(400).json({ success: false, error: "image_url or image_base64 required" });
     }
 
-    // Download or use provided image
     let imageData;
     if (image_base64) {
       imageData = image_base64.replace(/^data:image\/\w+;base64,/, "");
@@ -462,7 +520,7 @@ app.post("/verify_poster", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-//  POST /addlogo  (overlay logo on existing image)
+//  POST /addlogo  (Overlay logo)
 // ─────────────────────────────────────────────
 app.post("/addlogo", async (req, res) => {
   req.setTimeout(60000);
@@ -501,7 +559,6 @@ app.post("/addlogo", async (req, res) => {
     });
     fs.unlinkSync(inPath);
 
-    // Read and return
     const finalBuffer = fs.readFileSync(outPath);
     const finalBase64 = finalBuffer.toString("base64");
 
@@ -523,7 +580,20 @@ app.post("/addlogo", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-//  GET /debug_screenshots — List all generated images
+//  GET /status/:session_id  (Check session)
+// ─────────────────────────────────────────────
+app.get("/status/:session_id", (req, res) => {
+  const s = sessions.get(req.params.session_id);
+  if (!s) return res.status(404).json({ success: false, error: "Session not found" });
+  res.json({
+    success: true,
+    chat_url: s.chatUrl,
+    elapsed_seconds: Math.floor((Date.now() - s.createdAt) / 1000),
+  });
+});
+
+// ─────────────────────────────────────────────
+//  GET /debug_screenshots — List all images
 // ─────────────────────────────────────────────
 app.get("/debug_screenshots", (req, res) => {
   try {
@@ -555,7 +625,6 @@ app.get("/output/:filename", (req, res) => {
   try {
     const filePath = path.join(CFG.OUTPUT_DIR, req.params.filename);
 
-    // Security check
     if (!filePath.startsWith(CFG.OUTPUT_DIR)) {
       return res.status(403).json({ success: false, error: "Access denied" });
     }
@@ -580,10 +649,31 @@ app.get("/status", (req, res) => {
   res.json({
     success: true,
     status: "running",
-    version: "9.0-api",
+    version: "9.1-api",
     timestamp: new Date().toISOString(),
   });
 });
+
+// ─────────────────────────────────────────────
+//  POST /shutdown
+// ─────────────────────────────────────────────
+app.post("/shutdown", async (req, res) => {
+  sessions.clear();
+  res.json({ success: true, message: "Shutdown complete" });
+});
+
+// ─────────────────────────────────────────────
+//  SESSION EXPIRY (every 5 min)
+// ─────────────────────────────────────────────
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, s] of sessions.entries()) {
+    if (now - s.createdAt > CFG.SESSION_TTL_MS) {
+      sessions.delete(id);
+      console.log(`[Cleanup] Expired session ${id}`);
+    }
+  }
+}, 300000);
 
 // ─────────────────────────────────────────────
 //  GLOBAL ERROR HANDLER
@@ -599,7 +689,7 @@ app.use((err, req, res, next) => {
 // ─────────────────────────────────────────────
 const server = app.listen(CFG.PORT, "0.0.0.0", () => {
   console.log("===========================================");
-  console.log("  Gemini Poster Bot API  v9.0 (API-Based)");
+  console.log("  Gemini Poster Bot API  v9.1 (API-Based)");
   console.log(`  Listening on http://0.0.0.0:${CFG.PORT}`);
   console.log("===========================================");
 });
