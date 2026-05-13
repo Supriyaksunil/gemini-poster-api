@@ -1,14 +1,9 @@
 "use strict";
 
 // ============================================================
-//  Gemini Poster Bot API  v8.1-deploy
-//  Deploy fixes:
-//    - Anti-headless detection (user-agent, navigator overrides)
-//    - Screenshot debugging on image timeout
-//    - Verify Gemini actually responded before waiting for image
-//    - Smarter image URL detection for Linux/cloud environments
-//    - getPage() reuse fix (was creating duplicate pages)
-//    - Extra wait after Enter for slow cloud connections
+//  Gemini Poster Bot API  v8.0
+//  Fixes: network-level image detection, listener-before-prompt,
+//         120s timeout, MutationObserver + DOM poll fallbacks
 // ============================================================
 
 const express         = require("express");
@@ -56,7 +51,9 @@ const saveSessions = () => {
   }
 };
 
+// Load on startup
 loadSessions();
+// Save every 30 seconds
 setInterval(saveSessions, 30000);
 
 // ─────────────────────────────────────────────
@@ -84,8 +81,6 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 if (!fs.existsSync(CFG.LOGOS_DIR)) fs.mkdirSync(CFG.LOGOS_DIR, { recursive: true });
 const OUTPUT_DIR = path.join(__dirname, "output");
 if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
-const DEBUG_DIR = path.join(__dirname, "debug");
-if (!fs.existsSync(DEBUG_DIR)) fs.mkdirSync(DEBUG_DIR, { recursive: true });
 
 // ─────────────────────────────────────────────
 //  CHROME MUTEX
@@ -130,21 +125,6 @@ const getPidOnPort = port => new Promise(resolve => {
 });
 
 // ─────────────────────────────────────────────
-//  DEBUG SCREENSHOT
-// ─────────────────────────────────────────────
-const takeDebugScreenshot = async (page, label) => {
-  try {
-    const file = path.join(DEBUG_DIR, `${label}_${Date.now()}.png`);
-    await page.screenshot({ path: file, fullPage: false });
-    console.log(`[Debug] Screenshot saved: ${file}`);
-    return file;
-  } catch (e) {
-    console.log(`[Debug] Screenshot failed: ${e.message}`);
-    return null;
-  }
-};
-
-// ─────────────────────────────────────────────
 //  CHROME LIFECYCLE
 // ─────────────────────────────────────────────
 const killDebugChrome = async () => {
@@ -154,6 +134,7 @@ const killDebugChrome = async () => {
     chromePid  = null;
     chromeProc = null;
   }
+
   try {
     const { execSync } = require('child_process');
     const pid = execSync(`lsof -t -i:${CFG.CHROME_PORT} 2>/dev/null`).toString().trim();
@@ -162,6 +143,7 @@ const killDebugChrome = async () => {
       try { process.kill(parseInt(pid), 'SIGKILL'); } catch {}
     }
   } catch {}
+
   await sleep(1200);
 };
 
@@ -199,12 +181,8 @@ const launchChrome = async (startUrl = "https://gemini.google.com/app") => {
   const args = [
     `--remote-debugging-port=${CFG.CHROME_PORT}`,
     `--user-data-dir=${CFG.USER_DATA_DIR}`,
-    // ── FIX 1: Use xvfb-style virtual display instead of headless ─────────
-    // headless=new is easily fingerprinted by Google. We use a virtual X display
-    // (Xvfb) on Render, which makes Chrome look like a real desktop browser.
-    // If DISPLAY is set (Xvfb running), omit headless. Otherwise fall back.
-    ...(process.env.DISPLAY ? [] : ["--headless=new"]),
-    "--window-size=1280,900",
+    `--headless=new`,
+    "--window-size=1920,1080",
     "--no-first-run",
     "--no-default-browser-check",
     "--disable-gpu",
@@ -212,7 +190,6 @@ const launchChrome = async (startUrl = "https://gemini.google.com/app") => {
     "--disable-setuid-sandbox",
     "--no-sandbox",
     "--disable-background-networking",
-    // ── FIX 2: Keep extensions disabled but allow web features ────────────
     "--disable-extensions",
     "--disable-sync",
     "--disable-translate",
@@ -220,16 +197,10 @@ const launchChrome = async (startUrl = "https://gemini.google.com/app") => {
     "--mute-audio",
     "--disable-notifications",
     "--disable-popup-blocking",
-    // ── FIX 3: Disable features Google uses to detect automation ──────────
-    "--disable-blink-features=AutomationControlled",
-    "--disable-features=IsolateOrigins,site-per-process",
-    // ── FIX 4: Allow clipboard access in headless ─────────────────────────
-    "--enable-features=NetworkService,NetworkServiceLogging",
-    "--unsafely-treat-insecure-origin-as-secure=https://gemini.google.com",
     startUrl
   ];
 
-  console.log("[Chrome] Launching with args:", args.slice(0, 8).join(" "), "...");
+  console.log("[Chrome] Launching…");
   chromeProc = spawn(CFG.CHROME_PATH, args, { detached: false, stdio: "ignore" });
   chromePid  = chromeProc.pid;
 
@@ -291,41 +262,20 @@ const connectBrowser = async () => {
   return browser;
 };
 
-// ── FIX 5: Anti-detection overrides applied to every new page ────────────
-const applyStealthToPage = async (page) => {
-  // Override navigator.webdriver which Puppeteer sets to true
-  await page.evaluateOnNewDocument(() => {
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
-    Object.defineProperty(navigator, 'plugins',   { get: () => [1, 2, 3, 4, 5] });
-    // Fake chrome runtime so Google doesn't detect missing extension APIs
-    window.chrome = { runtime: {} };
-  });
-  // Set a real-looking user agent
-  await page.setUserAgent(
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-  );
-};
-
 const getPage = async (targetUrl) => {
   const b     = await connectBrowser();
   const pages = await b.pages();
 
-  // ── FIX 6: Don't reuse pages by URL match — always use first page ──────
-  // Reusing pages by URL caused stale page handles after Chrome restart
-  let page = pages[0];
+  let page = pages.find(p => p.url() === targetUrl)
+          || pages.find(p => p.url().startsWith(targetUrl));
+
   if (!page) {
-    page = await b.newPage();
-  }
-
-  await applyStealthToPage(page);
-  await page.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 });
-
-  const currentUrl = page.url();
-  if (!currentUrl.startsWith(targetUrl) && currentUrl !== targetUrl) {
-    console.log(`[Page] Navigating from ${currentUrl} → ${targetUrl}`);
+    page = pages[0] || await b.newPage();
+    console.log(`[Page] Navigating → ${targetUrl}`);
     await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
   }
+
+  await page.setViewport({ width: 1280, height: 900, deviceScaleFactor: 1 });
 
   try {
     await b.defaultBrowserContext()
@@ -350,27 +300,16 @@ async function pastePrompt(page, prompt) {
   const inputSelector = 'div[contenteditable="true"]';
   await page.waitForSelector(inputSelector, { visible: true, timeout: 30000 });
   await page.click(inputSelector);
-  await sleep(500);
   await page.keyboard.down("Control");
   await page.keyboard.press("A");
   await page.keyboard.up("Control");
   await page.keyboard.press("Backspace");
-  await sleep(200);
   await page.evaluate((text) => {
     const el = document.querySelector('div[contenteditable="true"]');
     el.focus();
     document.execCommand("insertText", false, text);
   }, prompt);
-  // ── FIX 7: Verify paste actually worked ──────────────────────────────
-  await sleep(300);
-  const pastedLen = await page.evaluate(() => {
-    const el = document.querySelector('div[contenteditable="true"]');
-    return el ? (el.innerText || el.textContent || '').trim().length : 0;
-  });
-  console.log(`[pastePrompt] Prompt pasted ✓ (${pastedLen} chars in input)`);
-  if (pastedLen < 5) {
-    console.log("[pastePrompt] WARNING: Input appears empty after paste!");
-  }
+  console.log("[pastePrompt] Prompt pasted safely ✓");
 }
 
 const waitForChatUrl = async (page, previousUrl, timeout = 60000) => {
@@ -400,31 +339,6 @@ const snapshotAllImgSrcs = (page) =>
   page.evaluate(() =>
     [...document.querySelectorAll("img")].map(i => i.src).filter(Boolean)
   );
-
-// ─────────────────────────────────────────────
-//  PAGE HEALTH CHECK
-//  Logs what Gemini is actually showing right now
-// ─────────────────────────────────────────────
-const logPageHealth = async (page) => {
-  try {
-    const info = await page.evaluate(() => ({
-      url        : location.href,
-      title      : document.title,
-      hasInput   : !!document.querySelector('div[contenteditable="true"]'),
-      hasSignIn  : document.body.innerText.toLowerCase().includes("sign in"),
-      hasCaptcha : document.body.innerText.toLowerCase().includes("captcha") ||
-                   document.body.innerText.toLowerCase().includes("verify"),
-      hasError   : document.body.innerText.toLowerCase().includes("something went wrong"),
-      imgCount   : document.querySelectorAll("img").length,
-      bodySnippet: document.body.innerText.slice(0, 200)
-    }));
-    console.log("[PageHealth]", JSON.stringify(info));
-    return info;
-  } catch (e) {
-    console.log("[PageHealth] Failed:", e.message);
-    return null;
-  }
-};
 
 // ─────────────────────────────────────────────
 //  IMAGE EXTRACTION
@@ -524,7 +438,9 @@ const waitForNewImageAfterPrompt = async (page, knownSrcs, promptSentAt, timeout
       "model-response, message-content, [data-response-index], [class*='model-response'], response-element"
     ).length
   );
+  console.log(`[waitForNewImageAfterPrompt] Blocks before: ${blockCountBefore}`);
 
+  console.log("[waitForNewImageAfterPrompt] Waiting for new response block…");
   try {
     await page.waitForFunction((before) =>
       document.querySelectorAll(
@@ -536,6 +452,7 @@ const waitForNewImageAfterPrompt = async (page, knownSrcs, promptSentAt, timeout
     console.log("[waitForNewImageAfterPrompt] Response block timeout — continuing");
   }
 
+  console.log("[waitForNewImageAfterPrompt] Waiting for input to be disabled (generation started)…");
   try {
     await page.waitForFunction(() => {
       const el = document.querySelector('div[contenteditable="true"]');
@@ -556,6 +473,7 @@ const waitForNewImageAfterPrompt = async (page, knownSrcs, promptSentAt, timeout
     console.log("[waitForNewImageAfterPrompt] Disabled signal not seen — continuing");
   }
 
+  console.log("[waitForNewImageAfterPrompt] Waiting for input re-enabled (generation done)…");
   try {
     await page.waitForFunction(() => {
       const el = document.querySelector('div[contenteditable="true"]');
@@ -577,6 +495,7 @@ const waitForNewImageAfterPrompt = async (page, knownSrcs, promptSentAt, timeout
     console.log("[waitForNewImageAfterPrompt] Re-enable signal not seen — continuing");
   }
 
+  console.log("[waitForNewImageAfterPrompt] Settling 3s for blob render…");
   await sleep(3000);
 
   for (let attempt = 0; attempt < 15; attempt++) {
@@ -587,6 +506,7 @@ const waitForNewImageAfterPrompt = async (page, knownSrcs, promptSentAt, timeout
         const knownSrcs  = new Set(knownSrcArr);
         const knownFps   = new Set(knownFpArr);
         const knownBlobs = new Set(knownBlobArr);
+
         const newImgs = [];
 
         for (const img of document.querySelectorAll("img")) {
@@ -598,6 +518,7 @@ const waitForNewImageAfterPrompt = async (page, knownSrcs, promptSentAt, timeout
             src.includes("googleusercontent.com") ||
             src.includes("usercontent.google.com");
           if (!isGenerated) continue;
+
           if (knownSrcs.has(src)) continue;
           if (knownBlobs.has(src)) continue;
 
@@ -617,6 +538,7 @@ const waitForNewImageAfterPrompt = async (page, knownSrcs, promptSentAt, timeout
           } catch {}
 
           if (fp && knownFps.has(fp)) continue;
+
           newImgs.push({ src, w, h, fp, complete: img.complete, natural: img.naturalWidth > 0 });
         }
 
@@ -627,6 +549,7 @@ const waitForNewImageAfterPrompt = async (page, knownSrcs, promptSentAt, timeout
 
       if (candidate) {
         console.log(`[waitForNewImageAfterPrompt] ✓ New image: ${candidate.src.substring(0, 70)}`);
+        console.log(`[waitForNewImageAfterPrompt]   ${candidate.w}x${candidate.h} fp=${candidate.fp}`);
 
         if (!candidate.complete || !candidate.natural) {
           await page.evaluate(async (src) => {
@@ -641,6 +564,7 @@ const waitForNewImageAfterPrompt = async (page, knownSrcs, promptSentAt, timeout
         }
 
         await sleep(300);
+        console.log("[waitForNewImageAfterPrompt] Extracting base64…");
         return await extractImageAsBase64(page, candidate.src);
       }
 
@@ -648,7 +572,7 @@ const waitForNewImageAfterPrompt = async (page, knownSrcs, promptSentAt, timeout
       console.log(`[waitForNewImageAfterPrompt] Scan error: ${e.message}`);
     }
 
-    console.log(`[waitForNewImageAfterPrompt] Attempt ${attempt + 1}/15 — no new image yet…`);
+    console.log(`[waitForNewImageAfterPrompt] Attempt ${attempt + 1}/15 — no new image yet, retrying…`);
     await sleep(1000);
   }
 
@@ -656,8 +580,9 @@ const waitForNewImageAfterPrompt = async (page, knownSrcs, promptSentAt, timeout
 };
 
 // ─────────────────────────────────────────────
-//  IMAGE DETECTION  v8.1
+//  IMAGE DETECTION  v8.0
 // ─────────────────────────────────────────────
+
 const isGeneratedImageUrl = (url, contentType = "") => {
   if (!url) return false;
   if (contentType && !contentType.startsWith("image/")) return false;
@@ -686,44 +611,6 @@ const isGeneratedImageUrl = (url, contentType = "") => {
     return false;
   }
 
-  return false;
-};
-
-// ─────────────────────────────────────────────
-//  waitForGeminiResponse
-//  NEW: Wait for Gemini to actually start responding before waiting for image
-//  This catches the case where the prompt was sent but Gemini didn't receive it
-// ─────────────────────────────────────────────
-const waitForGeminiResponse = async (page, blockCountBefore, timeoutMs = 30000) => {
-  console.log("[waitForGeminiResponse] Waiting for Gemini to start responding…");
-  const deadline = Date.now() + timeoutMs;
-
-  while (Date.now() < deadline) {
-    const info = await page.evaluate((before) => {
-      const blockCount = document.querySelectorAll(
-        "model-response, message-content, [data-response-index], [class*='model-response'], response-element"
-      ).length;
-      const isStreaming = !!(
-        document.querySelector("button[aria-label*='Stop' i]") ||
-        document.querySelector("button[aria-label*='Cancel' i]") ||
-        document.querySelector("pendulum-spinner") ||
-        document.querySelector("loading-indicator") ||
-        document.querySelector("[data-is-streaming='true']")
-      );
-      return { blockCount, isStreaming, newBlock: blockCount > before };
-    }, blockCountBefore);
-
-    console.log(`[waitForGeminiResponse] blocks=${info.blockCount} streaming=${info.isStreaming} newBlock=${info.newBlock}`);
-
-    if (info.newBlock || info.isStreaming) {
-      console.log("[waitForGeminiResponse] ✓ Gemini is responding");
-      return true;
-    }
-
-    await sleep(1000);
-  }
-
-  console.log("[waitForGeminiResponse] ⚠️ No response detected — prompt may not have been sent");
   return false;
 };
 
@@ -1145,7 +1032,7 @@ const pollTextResponse = async (page, snapshotBlockCount = 0, config = null) => 
     console.log(`[Verify] poll ${i}/${MAX_POLLS} loading=${loading} len=${len} stable=${stableCount}`);
 
     if (stableCount === 4 && lastStableLen === len && len >= MIN_LEN && !extraWaitDone) {
-      console.log(`[Verify] Stable at count=4 — waiting ${EXTRA_WAIT/1000}s extra…`);
+      console.log(`[Verify] Stable at count=4 with same length (${len}) — waiting ${EXTRA_WAIT/1000}s extra…`);
       await sleep(EXTRA_WAIT);
       extraWaitDone = true;
       continue;
@@ -1180,27 +1067,6 @@ const pollTextResponse = async (page, snapshotBlockCount = 0, config = null) => 
 // ═══════════════════════════════════════════════════════════════
 
 // ─────────────────────────────────────────────
-//  GET /debug_screenshot  — call this to see what Gemini looks like right now
-// ─────────────────────────────────────────────
-app.get("/debug_screenshot", async (req, res) => {
-  await acquireChrome();
-  try {
-    await ensureChrome();
-    const page = await getPage(GEMINI_BASE);
-    await sleep(3000);
-    const health = await logPageHealth(page);
-    const file = await takeDebugScreenshot(page, "debug_manual");
-    if (browser) { try { await browser.disconnect(); } catch {} browser = null; }
-    res.json({ success: true, health, screenshotFile: file });
-  } catch (err) {
-    if (browser) { try { await browser.disconnect(); } catch {} browser = null; }
-    res.status(500).json({ success: false, error: err.message });
-  } finally {
-    releaseChrome();
-  }
-});
-
-// ─────────────────────────────────────────────
 //  POST /generate_prompt
 // ─────────────────────────────────────────────
 app.post("/generate_prompt", async (req, res) => {
@@ -1218,14 +1084,11 @@ app.post("/generate_prompt", async (req, res) => {
     await ensureChrome();
     const page = await getPage(GEMINI_BASE);
 
-    if (!page.url().startsWith(GEMINI_BASE))
+    if (page.url() !== GEMINI_BASE)
       await page.goto(GEMINI_BASE, { waitUntil: "domcontentloaded", timeout: 30000 });
 
     await waitForInput(page, 35000);
     await sleep(600);
-
-    // ── FIX: Log page state before sending ───────────────────────────────
-    await logPageHealth(page);
 
     if (page.url().includes("signin"))
       throw new Error("Gemini sign-in required — log in first");
@@ -1233,7 +1096,6 @@ app.post("/generate_prompt", async (req, res) => {
     const previousUrl = page.url();
 
     await pastePrompt(page, prompt);
-    await sleep(500); // extra settle before Enter on cloud
     await page.keyboard.press("Enter");
     console.log("[generate_prompt] Enter key pressed ✓");
 
@@ -1244,15 +1106,24 @@ app.post("/generate_prompt", async (req, res) => {
       throw new Error("Chat URL did not change after sending prompt");
 
     console.log(`[generate_prompt] Chat URL: ${chatUrl}`);
-    await sleep(10000);
 
-    try { await page.close(); } catch {}
-    if (browser) { try { await browser.disconnect(); } catch {} browser = null; }
+    // CRITICAL: Keep browser alive so chat URL stays valid
+    // Do NOT close page or disconnect browser
+    console.log("[generate_prompt] Keeping browser alive for /generate reuse…");
 
     const sessionId = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    sessions.set(sessionId, { chatUrl, createdAt: Date.now(), originalPrompt: prompt });
+    sessions.set(sessionId, { 
+      chatUrl, 
+      createdAt: Date.now(), 
+      originalPrompt: prompt,
+      pageKeptOpen: true 
+    });
     saveSessions();
     console.log(`[generate_prompt] Done → session ${sessionId}`);
+    
+    // Release mutex but KEEP browser connected
+    releaseChrome();
+    
     return res.json({ success: true, session_id: sessionId, chat_url: chatUrl });
 
   } catch (err) {
@@ -1260,11 +1131,9 @@ app.post("/generate_prompt", async (req, res) => {
     if (browser) { try { await browser.disconnect(); } catch {} browser = null; }
     if (!res.headersSent)
       return res.status(500).json({ success: false, error: err.message });
-  } finally {
     releaseChrome();
   }
 });
-
 // ─────────────────────────────────────────────
 //  POST /generate
 // ─────────────────────────────────────────────
@@ -1288,27 +1157,36 @@ app.post("/generate", async (req, res) => {
     const safeName = (company_name || "Poster").replace(/[^a-zA-Z0-9]/g, "_");
 
     await ensureChrome();
-
-    const page = await getPage(chatUrl);
-    await page.goto(chatUrl, { waitUntil: ["domcontentloaded", "networkidle2"], timeout: 60000 });
-    await waitForInput(page, 30000);
-    await sleep(1500);
-
-    // ── FIX: Log page health to see what's actually on screen ────────────
-    const health = await logPageHealth(page);
-    await takeDebugScreenshot(page, "generate_before_prompt");
+    
+    // Reuse existing page from generate_prompt if browser is still connected
+    const b = await connectBrowser();
+    const pages = await b.pages();
+    
+    // Find page with our chat URL
+    let page = pages.find(p => p.url().includes(chatUrl.split('/').pop()) || p.url() === chatUrl);
+    
+    if (!page || page.isClosed()) {
+      console.log(`[generate] Existing page not found, navigating fresh…`);
+      page = await getPage(chatUrl);
+      await page.goto(chatUrl, { waitUntil: ["domcontentloaded", "networkidle2"], timeout: 60000 });
+      await waitForInput(page, 30000);
+    } else {
+      console.log(`[generate] Reusing existing page: ${page.url()}`);
+      await page.bringToFront();
+      await sleep(1000);
+    }
 
     let currentUrl = page.url();
     console.log(`[generate] On page: ${currentUrl}`);
 
-    if (currentUrl === GEMINI_BASE || currentUrl.endsWith('/app') || currentUrl.includes("signin") || health?.hasSignIn) {
-      console.log(`[generate] Chat expired or on wrong page. Re-creating with original prompt…`);
-
+    // If chat expired (redirected to /app), recreate it
+    if (currentUrl === GEMINI_BASE || currentUrl.endsWith('/app')) {
+      console.log(`[generate] Chat expired. Re-creating with original prompt…`);
+      
       const previousUrl = page.url();
       await pastePrompt(page, session.originalPrompt || second_prompt);
-      await sleep(500);
       await page.keyboard.press("Enter");
-
+      
       const newChatUrl = await waitForChatUrl(page, previousUrl, 60000);
       if (newChatUrl && newChatUrl !== GEMINI_BASE) {
         chatUrl = newChatUrl;
@@ -1318,8 +1196,8 @@ app.post("/generate", async (req, res) => {
       } else {
         throw new Error('Failed to recreate chat session');
       }
-
-      await sleep(3000);
+      
+      await sleep(1500);
       currentUrl = page.url();
     }
 
@@ -1327,14 +1205,7 @@ app.post("/generate", async (req, res) => {
     const knownSrcs = await snapshotAllImgSrcs(page);
     console.log(`[generate] Known images: ${knownSrcs.length}`);
 
-    // Snapshot block count before sending
-    const blockCountBefore = await page.evaluate(() =>
-      document.querySelectorAll(
-        "model-response, message-content, [data-response-index], [class*='model-response'], response-element"
-      ).length
-    );
-    console.log(`[generate] Response blocks before: ${blockCountBefore}`);
-
+    // Progressive timeouts
     const attemptTimeouts = [120000, 180000, 240000];
     let dataUrl = null;
     let lastErr = null;
@@ -1348,17 +1219,8 @@ app.post("/generate", async (req, res) => {
         await sleep(200);
 
         await pastePrompt(page, second_prompt);
-        await sleep(800); // ── FIX: extra wait on cloud before Enter ──────
         await page.keyboard.press("Enter");
         console.log("[generate] Enter key pressed ✓");
-
-        // ── FIX: Verify Gemini actually got the prompt ────────────────────
-        const responded = await waitForGeminiResponse(page, blockCountBefore, 30000);
-        if (!responded) {
-          // Screenshot to see what's wrong
-          await takeDebugScreenshot(page, `generate_no_response_attempt${attempt}`);
-          throw new Error("Gemini did not start responding after prompt — check screenshot in /debug folder");
-        }
 
         console.log(`[generate] Waiting for generated image…`);
         dataUrl = await imagePromise;
@@ -1368,15 +1230,15 @@ app.post("/generate", async (req, res) => {
       } catch (e) {
         lastErr = e;
         console.error(`[generate] Attempt ${attempt} failed: ${e.message}`);
-        await takeDebugScreenshot(page, `generate_fail_attempt${attempt}`);
-
         if (attempt < attemptTimeouts.length) {
           console.log(`[generate] Retrying in 3s…`);
           await sleep(3000);
           try {
             const freshSrcs = await snapshotAllImgSrcs(page);
             console.log(`[generate] Refreshed known images: ${freshSrcs.length}`);
-          } catch {}
+          } catch (refreshErr) {
+            console.log(`[generate] Could not refresh knownSrcs: ${refreshErr.message}`);
+          }
         }
       }
     }
@@ -1391,9 +1253,10 @@ app.post("/generate", async (req, res) => {
 
     sessions.delete(session_id);
     saveSessions();
-
+    
+    // NOW we can clean up browser since we're done with the whole flow
     if (browser) { try { await browser.disconnect(); } catch {} browser = null; }
-
+    
     sendImageFile(res, imgPath, { "X-Image-Brightness": brightness, "X-Chat-Url": finalUrl });
     console.log("[generate] Done ✓");
 
@@ -1406,7 +1269,6 @@ app.post("/generate", async (req, res) => {
     releaseChrome();
   }
 });
-
 // ─────────────────────────────────────────────
 //  POST /edit
 // ─────────────────────────────────────────────
@@ -1445,7 +1307,6 @@ app.post("/edit", async (req, res) => {
         if (page.url().includes("signin")) throw new Error("Gemini sign-in required");
 
         await waitForInput(page, 30000);
-        await logPageHealth(page);
 
         console.log("[edit] Waiting for DOM to stabilise…");
         let lastCount = -1, stableRounds = 0;
@@ -1477,7 +1338,6 @@ app.post("/edit", async (req, res) => {
 
         const promptSentAt = Date.now();
         await pastePrompt(page, correction_prompt);
-        await sleep(800);
         await page.keyboard.press("Enter");
         console.log("[edit] Enter key pressed ✓");
 
@@ -1489,11 +1349,10 @@ app.post("/edit", async (req, res) => {
       } catch (e) {
         lastErr = e;
         console.error(`[edit] Attempt ${attempt} failed: ${e.message}`);
-        if (page) await takeDebugScreenshot(page, `edit_fail_attempt${attempt}`);
         if (browser) { try { await browser.disconnect(); } catch {} browser = null; }
         await nukeChrome();
         if (attempt < MAX_ATTEMPTS) {
-          console.log(`[edit] Retrying in 3s…`);
+          console.log(`[edit] Retrying in 3s with longer timeout…`);
           await sleep(3000);
         }
       }
@@ -1597,22 +1456,27 @@ app.post("/verify_poster", async (req, res) => {
         const b     = await connectBrowser();
         const pages = await b.pages();
         const page  = pages[0] || await b.newPage();
-        await applyStealthToPage(page);
 
         await page.goto(GEMINI_BASE, { waitUntil: ["domcontentloaded", "networkidle2"], timeout: 35000 });
         await sleep(2000);
-        await logPageHealth(page);
 
         await page.evaluate(() => {
           const buttons = [...document.querySelectorAll('button, [role="button"]')];
-          const startBtn = buttons.find(b =>
+          const startBtn = buttons.find(b => 
             (b.innerText || '').includes('Write anything') ||
             (b.innerText || '').includes('Help me learn') ||
             (b.innerText || '').includes('Create image') ||
             (b.innerText || '').includes('Get started')
           );
           if (startBtn) { startBtn.click(); return true; }
+          const overlay = document.querySelector('[data-test-id="onboarding-dialog"], .modal, [role="dialog"]');
+          if (overlay) {
+            const closeBtn = overlay.querySelector('button, [aria-label*="close" i]');
+            if (closeBtn) closeBtn.click();
+          }
           return false;
+        }).then(dismissed => {
+          if (dismissed) console.log('[verify_poster] Dismissed onboarding screen');
         }).catch(() => {});
 
         await sleep(1500);
@@ -1626,16 +1490,35 @@ app.post("/verify_poster", async (req, res) => {
             "model-response, message-content, [data-response-index], [class*='model-response']"
           ).length
         );
+        console.log(`[verify_poster] Blocks before send: ${blockCountBefore}`);
 
         await uploadImageToGemini(page, tempPath);
-        await page.waitForFunction(() => document.querySelector("img") !== null, { timeout: 15000 });
+
+        console.log("[verify_poster] Waiting for image to attach...");
+        await page.waitForFunction(
+          () => document.querySelector("img") !== null,
+          { timeout: 15000 }
+        );
         await sleep(1500);
 
         await pastePrompt(page, verify_prompt);
         await sleep(800);
 
+        const promptPasted = await page.evaluate(() => {
+          const el = document.querySelector('div[contenteditable="true"]');
+          return el && (el.innerText || el.textContent).trim().length > 50;
+        });
+
+        if (!promptPasted) {
+          console.log('[verify_poster] Prompt not detected in input, retrying paste…');
+          await pastePrompt(page, verify_prompt);
+          await sleep(800);
+        }
+
         let sent = false;
         for (let sendAttempt = 0; sendAttempt < 3; sendAttempt++) {
+          console.log(`[verify_poster] Submit attempt ${sendAttempt + 1}/3…`);
+
           if (sendAttempt === 0) {
             try {
               const sendBtn = await page.evaluateHandle(() => {
@@ -1643,39 +1526,58 @@ app.post("/verify_poster", async (req, res) => {
                 return buttons.find(b => {
                   const aria = (b.getAttribute('aria-label') || '').toLowerCase();
                   return aria.includes('send') || aria.includes('submit');
-                }) || null;
+                }) || buttons[buttons.length - 1];
               });
-              const el = sendBtn ? sendBtn.asElement() : null;
-              if (el) { await el.click(); console.log('[verify_poster] Clicked send button'); }
-              else throw new Error("send button not found");
+              if (sendBtn) {
+                await sendBtn.asElement().click();
+                console.log('[verify_poster] Clicked send button');
+              }
             } catch (e) {
               console.log('[verify_poster] Send button click failed:', e.message);
             }
           } else if (sendAttempt === 1) {
-            await page.keyboard.press("Enter");
+            try {
+              await page.evaluate(() => {
+                const el = document.querySelector('div[contenteditable="true"]');
+                if (!el) return;
+                const kd = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true });
+                const kp = new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true });
+                el.dispatchEvent(kd);
+                el.dispatchEvent(kp);
+              });
+              console.log('[verify_poster] Dispatched custom Enter events');
+            } catch (e) {
+              console.log('[verify_poster] Custom Enter dispatch failed:', e.message);
+            }
           } else {
-            await page.evaluate(() => {
-              const el = document.querySelector('div[contenteditable="true"]');
-              if (!el) return;
-              el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
-            });
+            await page.keyboard.press("Enter");
           }
 
-          await sleep(1500);
-          const newBlockCount = await page.evaluate(() =>
+          await sleep(1200);
+
+          const blockCountAfterSend = await page.evaluate(() =>
             document.querySelectorAll(
               "model-response, message-content, [data-response-index], [class*='model-response']"
             ).length
           );
+          console.log(`[verify_poster] Blocks after send attempt: ${blockCountAfterSend}`);
 
-          if (newBlockCount > blockCountBefore) {
+          if (blockCountAfterSend > blockCountBefore) {
             sent = true;
-            console.log('[verify_poster] Response block detected ✓');
+            console.log('[verify_poster] Response block detected — prompt sent successfully');
             break;
+          }
+
+          if (!sent && sendAttempt < 2) {
+            await sleep(800);
           }
         }
 
-        if (!sent) console.log('[verify_poster] Could not confirm send, continuing…');
+        if (!sent) {
+          console.log('[verify_poster] Could not confirm prompt was sent, but continuing…');
+        }
+
+        console.log("[verify_poster] Prompt sent — polling…");
 
         const cfg = attemptConfigs[attempt - 1];
         const analysis = await pollTextResponse(page, blockCountBefore, cfg);
@@ -1686,14 +1588,26 @@ app.post("/verify_poster", async (req, res) => {
         const hasGeminiSaid = analysis.toLowerCase().includes("gemini said");
 
         if (!hasGeminiSaid) {
-          if (attempt < MAX_ATTEMPTS) { await nukeChrome(); await sleep(3000); continue; }
+          console.log(`[verify_poster] "Gemini said" NOT found (len=${analysis.length}). Retrying…`);
+          if (browser) { try { await browser.disconnect(); } catch {} browser = null; }
+          await nukeChrome();
+          if (attempt < MAX_ATTEMPTS) { await sleep(3000); continue; }
           try { fs.unlinkSync(tempPath); tempPath = null; } catch {}
-          return res.json({ success: true, analysis, chat_url: page.url(), warning: "Response may be incomplete" });
+          return res.json({
+            success  : true,
+            analysis,
+            chat_url : page.url(),
+            warning  : "Response may be incomplete — 'Gemini said' not detected"
+          });
         }
 
+        console.log(`[verify_poster] "Gemini said" confirmed (len=${analysis.length})`);
         const chatUrl = page.url();
+
         try { fs.unlinkSync(tempPath); tempPath = null; } catch {}
         await nukeChrome();
+        console.log("[verify_poster] Done ✓");
+
         return res.json({ success: true, analysis, chat_url: chatUrl });
 
       } catch (e) {
@@ -1749,22 +1663,26 @@ app.get("/debug_gemini", async (req, res) => {
     await ensureChrome();
     const page = await getPage(GEMINI_BASE);
     await sleep(4000);
-    await logPageHealth(page);
 
     const dump = await page.evaluate(() => ({
       pageUrl  : location.href,
-      buttons  : [...document.querySelectorAll("button,[role='button']")]
+      buttons  : [...document.querySelectorAll("button,[role='button'],mat-icon-button")]
         .filter(el => el.getBoundingClientRect().width > 0)
-        .map(el => ({
-          tag   : el.tagName,
-          aria  : el.getAttribute("aria-label"),
-          text  : el.innerText?.trim().slice(0, 40)
-        })),
+        .map(el => {
+          const r = el.getBoundingClientRect();
+          return {
+            tag    : el.tagName,
+            aria   : el.getAttribute("aria-label"),
+            jsname : el.getAttribute("jsname"),
+            text   : el.innerText?.trim().slice(0, 40),
+            rect   : { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }
+          };
+        }),
       inputs   : [...document.querySelectorAll("input")].map(el => ({
         type: el.type, id: el.id, accept: el.accept,
         visible: el.getBoundingClientRect().width > 0
       })),
-      bodyText : document.body.innerText.slice(0, 800)
+      bodyText : document.body.innerText.slice(0, 500)
     }));
 
     if (browser) { try { await browser.disconnect(); } catch {} browser = null; }
@@ -1787,7 +1705,7 @@ app.use((err, req, res, next) => {
 });
 
 // ─────────────────────────────────────────────
-//  SESSION EXPIRY
+//  SESSION EXPIRY (every 5 min)
 // ─────────────────────────────────────────────
 setInterval(() => {
   const now = Date.now();
@@ -1804,7 +1722,7 @@ setInterval(() => {
 // ─────────────────────────────────────────────
 const server = app.listen(3000, "0.0.0.0", () => {
   console.log("===========================================");
-  console.log("  Gemini Poster Bot API  v8.1-deploy");
+  console.log("  Gemini Poster Bot API  v8.0");
   console.log("  Listening on http://0.0.0.0:3000");
   console.log("===========================================");
 });
