@@ -168,7 +168,7 @@ const pickLogo = (brightness, logos, preferred) => {
 // ─────────────────────────────────────────────
 //  CORE: GENERATE IMAGE WITH GEMINI API
 // ─────────────────────────────────────────────
-async function generateImageWithGemini(prompt, modelName = "gemini-2.0-flash-exp-image-generation") {
+async function generateImageWithGemini(prompt, modelName = "gemini-3.1-flash-image-preview") {
   console.log(`[Gemini API] Generating image...`);
   console.log(`[Gemini API] Prompt: ${prompt.substring(0, 100)}...`);
 
@@ -405,7 +405,7 @@ app.post("/edit", async (req, res) => {
     const fullPrompt = `Here is an image I generated earlier. Please edit it based on this request: ${correction_prompt}`;
 
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash-exp-image-generation",
+      model: "gemini-3.1-flash-image-preview",
       generationConfig: {
         responseModalities: ["Text", "Image"],
       },
