@@ -181,7 +181,7 @@ const launchChrome = async (startUrl = "https://gemini.google.com/app") => {
   const args = [
     `--remote-debugging-port=${CFG.CHROME_PORT}`,
     `--user-data-dir=${CFG.USER_DATA_DIR}`,
-    `--headless=new`,
+    //`--headless=new`,
     "--window-size=1920,1080",
     "--no-first-run",
     "--no-default-browser-check",
