@@ -69,7 +69,18 @@ const CFG = {
   POLL_MS        : 3000,
   SESSION_TTL_MS : 7200000
 };
-
+// ─── ADD THIS HELPER ───
+const takeScreenshot = async (page, label) => {
+  try {
+    const file = path.join(OUTPUT_DIR, `debug_${label}_${Date.now()}.png`);
+    await page.screenshot({ path: file, fullPage: false, clip: { x: 0, y: 0, width: 1280, height: 2000 } });
+    console.log(`[Debug] 📸 Screenshot: ${file}`);
+    return file;
+  } catch (e) {
+    console.log(`[Debug] Screenshot failed: ${e.message}`);
+    return null;
+  }
+};
 // ─────────────────────────────────────────────
 //  BOOTSTRAP
 // ─────────────────────────────────────────────
@@ -1137,6 +1148,9 @@ app.post("/generate_prompt", async (req, res) => {
 // ─────────────────────────────────────────────
 //  POST /generate
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+//  POST /generate  (with debug screenshots)
+// ─────────────────────────────────────────────
 app.post("/generate", async (req, res) => {
   req.setTimeout(600000);
   res.setTimeout(600000);
@@ -1146,7 +1160,6 @@ app.post("/generate", async (req, res) => {
 
   try {
     const { session_id, second_prompt, company_name } = req.body;
-
     if (!session_id)    return res.status(400).json({ success: false, error: "session_id required" });
     if (!second_prompt) return res.status(400).json({ success: false, error: "second_prompt required" });
 
@@ -1158,11 +1171,9 @@ app.post("/generate", async (req, res) => {
 
     await ensureChrome();
     
-    // Reuse existing page from generate_prompt if browser is still connected
     const b = await connectBrowser();
     const pages = await b.pages();
     
-    // Find page with our chat URL
     let page = pages.find(p => p.url().includes(chatUrl.split('/').pop()) || p.url() === chatUrl);
     
     if (!page || page.isClosed()) {
@@ -1179,10 +1190,12 @@ app.post("/generate", async (req, res) => {
     let currentUrl = page.url();
     console.log(`[generate] On page: ${currentUrl}`);
 
-    // If chat expired (redirected to /app), recreate it
+    // 🔴 DEBUG: Screenshot current state
+    await takeScreenshot(page, "01_before_prompt");
+
+    // If chat expired, recreate
     if (currentUrl === GEMINI_BASE || currentUrl.endsWith('/app')) {
       console.log(`[generate] Chat expired. Re-creating with original prompt…`);
-      
       const previousUrl = page.url();
       await pastePrompt(page, session.originalPrompt || second_prompt);
       await page.keyboard.press("Enter");
@@ -1192,20 +1205,21 @@ app.post("/generate", async (req, res) => {
         chatUrl = newChatUrl;
         sessions.set(session_id, { chatUrl: newChatUrl, createdAt: Date.now(), originalPrompt: session.originalPrompt });
         saveSessions();
-        console.log(`[generate] New chat URL: ${newChatUrl}`);
       } else {
         throw new Error('Failed to recreate chat session');
       }
-      
       await sleep(1500);
       currentUrl = page.url();
     }
 
     console.log(`[generate] Ready on: ${currentUrl}`);
+    
+    // 🔴 DEBUG: Screenshot before sending second prompt
+    await takeScreenshot(page, "02_ready_for_second_prompt");
+
     const knownSrcs = await snapshotAllImgSrcs(page);
     console.log(`[generate] Known images: ${knownSrcs.length}`);
 
-    // Progressive timeouts
     const attemptTimeouts = [120000, 180000, 240000];
     let dataUrl = null;
     let lastErr = null;
@@ -1222,14 +1236,24 @@ app.post("/generate", async (req, res) => {
         await page.keyboard.press("Enter");
         console.log("[generate] Enter key pressed ✓");
 
+        // 🔴 DEBUG: Screenshot right after submitting
+        await takeScreenshot(page, `03_attempt${attempt}_after_submit`);
+
         console.log(`[generate] Waiting for generated image…`);
         dataUrl = await imagePromise;
         console.log(`[generate] Image received on attempt ${attempt}`);
+        
+        // 🔴 DEBUG: Screenshot with image
+        await takeScreenshot(page, `04_attempt${attempt}_image_found`);
         break;
 
       } catch (e) {
         lastErr = e;
         console.error(`[generate] Attempt ${attempt} failed: ${e.message}`);
+        
+        // 🔴 DEBUG: Screenshot on failure
+        await takeScreenshot(page, `05_attempt${attempt}_failed`);
+
         if (attempt < attemptTimeouts.length) {
           console.log(`[generate] Retrying in 3s…`);
           await sleep(3000);
@@ -1254,7 +1278,6 @@ app.post("/generate", async (req, res) => {
     sessions.delete(session_id);
     saveSessions();
     
-    // NOW we can clean up browser since we're done with the whole flow
     if (browser) { try { await browser.disconnect(); } catch {} browser = null; }
     
     sendImageFile(res, imgPath, { "X-Image-Brightness": brightness, "X-Chat-Url": finalUrl });
