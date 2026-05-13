@@ -181,11 +181,11 @@ const launchChrome = async (startUrl = "https://gemini.google.com/app") => {
   const args = [
     `--remote-debugging-port=${CFG.CHROME_PORT}`,
     `--user-data-dir=${CFG.USER_DATA_DIR}`,
-    //`--headless=new`,
+    // `--headless=new`,  // 🔴 DISABLED FOR VISUAL DEBUGGING
     "--window-size=1920,1080",
     "--no-first-run",
     "--no-default-browser-check",
-    "--disable-gpu",
+    "--disable-gpu",              // Optional: keep or remove for visual mode
     "--disable-dev-shm-usage",
     "--disable-setuid-sandbox",
     "--no-sandbox",
@@ -200,7 +200,7 @@ const launchChrome = async (startUrl = "https://gemini.google.com/app") => {
     startUrl
   ];
 
-  console.log("[Chrome] Launching…");
+  console.log("[Chrome] Launching in VISIBLE mode (non-headless)…");
   chromeProc = spawn(CFG.CHROME_PATH, args, { detached: false, stdio: "ignore" });
   chromePid  = chromeProc.pid;
 
