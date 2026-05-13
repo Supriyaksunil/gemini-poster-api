@@ -1435,7 +1435,55 @@ app.post("/addlogo", async (req, res) => {
     if (!res.headersSent) res.status(500).json({ success: false, error: err.message });
   }
 });
+// ─────────────────────────────────────────────
+//  GET /debug_screenshots — List all screenshots
+// ─────────────────────────────────────────────
+app.get("/debug_screenshots", (req, res) => {
+  try {
+    if (!fs.existsSync(OUTPUT_DIR)) {
+      return res.json({ success: true, screenshots: [], count: 0 });
+    }
+    
+    const files = fs.readdirSync(OUTPUT_DIR)
+      .filter(f => f.startsWith("debug_"))
+      .map(f => ({
+        filename: f,
+        url: `${req.protocol}://${req.get("host")}/debug_screenshots/${f}`,
+        size: fs.statSync(path.join(OUTPUT_DIR, f)).size,
+        created: fs.statSync(path.join(OUTPUT_DIR, f)).mtime
+      }))
+      .sort((a, b) => new Date(b.created) - new Date(a.created)); // newest first
 
+    res.json({ success: true, screenshots: files, count: files.length });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────
+//  GET /debug_screenshots/:filename — Download a screenshot
+// ─────────────────────────────────────────────
+app.get("/debug_screenshots/:filename", (req, res) => {
+  try {
+    const filePath = path.join(OUTPUT_DIR, req.params.filename);
+    
+    // Security: ensure file is inside OUTPUT_DIR
+    if (!filePath.startsWith(OUTPUT_DIR)) {
+      return res.status(403).json({ success: false, error: "Access denied" });
+    }
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, error: "File not found" });
+    }
+
+    res.sendFile(filePath, { 
+      headers: { "Content-Type": "image/png" },
+      dotfiles: "deny" 
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 // ─────────────────────────────────────────────
 //  POST /verify_poster
 // ─────────────────────────────────────────────
