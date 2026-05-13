@@ -1,8 +1,8 @@
 "use strict";
 
 // ============================================================
-//  Gemini Poster Bot API  v10.0  — Cookie-Based Puppeteer
-//  Uses exported cookies for auth, no profile needed
+//  Gemini Poster Bot API  v11.0  — Automated Google Login
+//  Logs into Gemini automatically using credentials
 // ============================================================
 
 const express = require("express");
@@ -12,7 +12,6 @@ const path = require("path");
 const fs = require("fs");
 const cors = require("cors");
 
-// Enable stealth
 puppeteer.use(StealthPlugin());
 
 // ─────────────────────────────────────────────
@@ -30,8 +29,9 @@ const CFG = {
   CHROME_PATH: process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/google-chrome-stable",
 };
 
-// Parse cookies from environment variable
-const GEMINI_COOKIES = process.env.GEMINI_COOKIES || "";
+// Google credentials from environment
+const GOOGLE_EMAIL = process.env.GOOGLE_EMAIL;
+const GOOGLE_PASSWORD = process.env.GOOGLE_PASSWORD;
 
 // ─────────────────────────────────────────────
 //  INIT
@@ -58,32 +58,6 @@ let chromePid = null;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ─────────────────────────────────────────────
-//  COOKIE PARSER
-// ─────────────────────────────────────────────
-const parseCookies = (cookieString) => {
-  if (!cookieString) return [];
-  
-  const cookies = [];
-  const lines = cookieString.split("\n").filter((l) => l.trim() && !l.startsWith("#"));
-  
-  for (const line of lines) {
-    const parts = line.split("\t");
-    if (parts.length >= 7) {
-      cookies.push({
-        domain: parts[0].startsWith(".") ? parts[0].substring(1) : parts[0],
-        path: parts[2],
-        secure: parts[3] === "TRUE",
-        expires: parseInt(parts[4]) || Math.floor(Date.now() / 1000) + 86400,
-        name: parts[5],
-        value: parts[6],
-      });
-    }
-  }
-  
-  return cookies;
-};
-
-// ─────────────────────────────────────────────
 //  CHROME LIFECYCLE
 // ─────────────────────────────────────────────
 const killChrome = async () => {
@@ -92,7 +66,11 @@ const killChrome = async () => {
     chromePid = null;
     chromeProc = null;
   }
-  await sleep(1000);
+  if (browser) {
+    try { await browser.close(); } catch {}
+    browser = null;
+  }
+  await sleep(1500);
 };
 
 const launchChrome = async () => {
@@ -118,7 +96,6 @@ const launchChrome = async () => {
     "--mute-audio",
     "--disable-notifications",
     "--disable-popup-blocking",
-    CFG.GEMINI_BASE,
   ];
 
   console.log("[Chrome] Launching headless Chrome...");
@@ -176,33 +153,94 @@ const getPage = async (targetUrl) => {
 };
 
 // ─────────────────────────────────────────────
-//  SET COOKIES
+//  GOOGLE LOGIN
 // ─────────────────────────────────────────────
-const setGeminiCookies = async (page) => {
-  const cookies = parseCookies(GEMINI_COOKIES);
-  if (!cookies.length) {
-    console.log("[Cookies] No cookies found in GEMINI_COOKIES env var");
-    return false;
+const loginToGoogle = async (page) => {
+  console.log("[Login] Starting Google login flow...");
+
+  if (!GOOGLE_EMAIL || !GOOGLE_PASSWORD) {
+    throw new Error("GOOGLE_EMAIL and GOOGLE_PASSWORD environment variables required");
   }
 
-  console.log(`[Cookies] Setting ${cookies.length} cookies...`);
-  
-  for (const cookie of cookies) {
-    try {
-      await page.setCookie({
-        name: cookie.name,
-        value: cookie.value,
-        domain: cookie.domain,
-        path: cookie.path,
-        secure: cookie.secure,
-        expires: cookie.expires,
-      });
-    } catch (e) {
-      console.log(`[Cookies] Failed to set ${cookie.name}: ${e.message}`);
-    }
+  // Navigate to Gemini
+  await page.goto("https://gemini.google.com/app", { waitUntil: "networkidle2", timeout: 30000 });
+  await sleep(3000);
+
+  // Check if already signed in
+  const isSignedIn = await page.evaluate(() => {
+    const bodyText = document.body.innerText;
+    return !bodyText.includes("Sign in") && !bodyText.includes("Sign in to Gemini") && bodyText.includes("Gemini");
+  });
+
+  if (isSignedIn) {
+    console.log("[Login] Already signed in ✓");
+    return true;
   }
-  
-  console.log("[Cookies] Cookies set ✓");
+
+  console.log("[Login] Not signed in, starting login...");
+
+  // Click sign in button
+  try {
+    const signInBtn = await page.$('a[href*="signin"], button:has-text("Sign in"), [data-test-id="sign-in-button"]');
+    if (signInBtn) {
+      await signInBtn.click();
+      await sleep(3000);
+    } else {
+      // Try navigating directly to sign in
+      await page.goto("https://accounts.google.com/signin", { waitUntil: "networkidle2", timeout: 30000 });
+    }
+  } catch {
+    await page.goto("https://accounts.google.com/signin", { waitUntil: "networkidle2", timeout: 30000 });
+  }
+
+  // Enter email
+  console.log("[Login] Entering email...");
+  await page.waitForSelector('input[type="email"], input[name="identifier"]', { visible: true, timeout: 15000 });
+  await page.type('input[type="email"], input[name="identifier"]', GOOGLE_EMAIL, { delay: 50 });
+  await sleep(500);
+  await page.keyboard.press("Enter");
+  await sleep(3000);
+
+  // Enter password
+  console.log("[Login] Entering password...");
+  await page.waitForSelector('input[type="password"], input[name="password"]', { visible: true, timeout: 15000 });
+  await page.type('input[type="password"], input[name="password"]', GOOGLE_PASSWORD, { delay: 50 });
+  await sleep(500);
+  await page.keyboard.press("Enter");
+  await sleep(5000);
+
+  // Handle 2FA if present
+  try {
+    const twoFA = await page.$('input[type="tel"], input[name="totpPin"], [data-challengeindex="0"]');
+    if (twoFA) {
+      console.log("[Login] 2FA detected — waiting for manual code entry...");
+      // Wait up to 60 seconds for 2FA
+      await page.waitForFunction(() => {
+        return !document.body.innerText.includes("2-Step Verification") &&
+               !document.body.innerText.includes("Enter code");
+      }, { timeout: 60000 });
+    }
+  } catch {
+    // No 2FA or already passed
+  }
+
+  // Navigate back to Gemini
+  await page.goto("https://gemini.google.com/app", { waitUntil: "networkidle2", timeout: 30000 });
+  await sleep(3000);
+
+  // Verify login
+  const finalCheck = await page.evaluate(() => {
+    const bodyText = document.body.innerText;
+    return !bodyText.includes("Sign in") && !bodyText.includes("Sign in to Gemini");
+  });
+
+  if (!finalCheck) {
+    const screenshotPath = path.join(CFG.OUTPUT_DIR, `login_fail_${Date.now()}.png`);
+    await page.screenshot({ path: screenshotPath });
+    throw new Error(`Login failed — screenshot saved: ${screenshotPath}`);
+  }
+
+  console.log("[Login] Signed in successfully ✓");
   return true;
 };
 
@@ -269,7 +307,7 @@ const extractImageAsBase64 = async (page, src) => {
   }, src);
 };
 
-const waitForNewImage = async (page, knownSrcs, timeoutMs = 120000) => {
+const waitForNewImage = async (page, knownSrcs, timeoutMs = 180000) => {
   const deadline = Date.now() + timeoutMs;
   const knownSet = new Set(knownSrcs);
 
@@ -381,7 +419,7 @@ const pickLogo = (brightness, logos, preferred) => {
   return brightness === "dark" ? logos.white || logos.blue || logos.black : logos.blue || logos.black || logos.white;
 };
 
-// ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
 //  ROUTES
 // ═══════════════════════════════════════════════════════════════
 
@@ -402,28 +440,9 @@ app.post("/generate_prompt", async (req, res) => {
     await launchChrome();
 
     const page = await getPage(CFG.GEMINI_BASE);
-    
-    // Set cookies for auth
-    const cookiesSet = await setGeminiCookies(page);
-    if (!cookiesSet) {
-      console.log("[generate_prompt] WARNING: No cookies set — Gemini may require sign-in");
-    }
 
-    // Refresh to apply cookies
-    await page.reload({ waitUntil: "domcontentloaded", timeout: 30000 });
-    await sleep(2000);
-
-    // Check if signed in
-    const isSignedIn = await page.evaluate(() => {
-      return !document.body.innerText.includes("Sign in") && 
-             !document.body.innerText.includes("Sign in to Gemini");
-    });
-
-    if (!isSignedIn) {
-      console.log("[generate_prompt] WARNING: Not signed in — cookies may be expired");
-    } else {
-      console.log("[generate_prompt] Signed in ✓");
-    }
+    // Login
+    await loginToGoogle(page);
 
     await waitForInput(page, 35000);
     await sleep(600);
@@ -469,6 +488,12 @@ app.post("/generate", async (req, res) => {
     if (!session) return res.status(404).json({ success: false, error: "Session not found" });
 
     const safeName = (company_name || "Poster").replace(/[^a-zA-Z0-9]/g, "_");
+
+    // Reconnect to existing browser or launch new
+    if (!browser) {
+      console.log("[generate] Browser disconnected, reconnecting...");
+      await launchChrome();
+    }
 
     const page = await getPage(session.chatUrl);
     await page.goto(session.chatUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
@@ -588,7 +613,7 @@ app.get("/debug_screenshots", (req, res) => {
 //  GET /status
 // ─────────────────────────────────────────────
 app.get("/status", (req, res) => {
-  res.json({ success: true, status: "running", version: "10.0-cookie", timestamp: new Date().toISOString() });
+  res.json({ success: true, status: "running", version: "11.0-auto-login", timestamp: new Date().toISOString() });
 });
 
 // ─────────────────────────────────────────────
@@ -596,7 +621,7 @@ app.get("/status", (req, res) => {
 // ─────────────────────────────────────────────
 const server = app.listen(CFG.PORT, "0.0.0.0", () => {
   console.log("===========================================");
-  console.log("  Gemini Poster Bot API  v10.0 (Cookie-Based)");
+  console.log("  Gemini Poster Bot API  v11.0 (Auto-Login)");
   console.log(`  Listening on http://0.0.0.0:${CFG.PORT}`);
   console.log("===========================================");
 });
