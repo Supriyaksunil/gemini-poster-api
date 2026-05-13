@@ -1107,19 +1107,23 @@ app.post("/generate_prompt", async (req, res) => {
 
     console.log(`[generate_prompt] Chat URL: ${chatUrl}`);
 
-    // Wait briefly for Gemini to fully persist the chat, then clean up
-    console.log("[generate_prompt] Waiting 10 seconds before closing…");
-    await sleep(10000);
-
-    try { await page.close(); console.log("[generate_prompt] Page closed ✓"); }
-    catch (e) { console.log("[generate_prompt] Page close failed:", e.message); }
-
-    if (browser) { try { await browser.disconnect(); } catch {} browser = null; }
+    // CRITICAL: Keep browser alive so chat URL stays valid
+    // Do NOT close page or disconnect browser
+    console.log("[generate_prompt] Keeping browser alive for /generate reuse…");
 
     const sessionId = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    sessions.set(sessionId, { chatUrl, createdAt: Date.now(), originalPrompt: prompt });
+    sessions.set(sessionId, { 
+      chatUrl, 
+      createdAt: Date.now(), 
+      originalPrompt: prompt,
+      pageKeptOpen: true 
+    });
     saveSessions();
     console.log(`[generate_prompt] Done → session ${sessionId}`);
+    
+    // Release mutex but KEEP browser connected
+    releaseChrome();
+    
     return res.json({ success: true, session_id: sessionId, chat_url: chatUrl });
 
   } catch (err) {
@@ -1127,11 +1131,9 @@ app.post("/generate_prompt", async (req, res) => {
     if (browser) { try { await browser.disconnect(); } catch {} browser = null; }
     if (!res.headersSent)
       return res.status(500).json({ success: false, error: err.message });
-  } finally {
     releaseChrome();
   }
 });
-
 // ─────────────────────────────────────────────
 //  POST /generate
 // ─────────────────────────────────────────────
@@ -1155,24 +1157,36 @@ app.post("/generate", async (req, res) => {
     const safeName = (company_name || "Poster").replace(/[^a-zA-Z0-9]/g, "_");
 
     await ensureChrome();
-
-    // Fresh navigation to chat URL
-    const page = await getPage(chatUrl);
-    await page.goto(chatUrl, { waitUntil: ["domcontentloaded", "networkidle2"], timeout: 60000 });
-    await waitForInput(page, 30000);
-    await sleep(1500);
+    
+    // Reuse existing page from generate_prompt if browser is still connected
+    const b = await connectBrowser();
+    const pages = await b.pages();
+    
+    // Find page with our chat URL
+    let page = pages.find(p => p.url().includes(chatUrl.split('/').pop()) || p.url() === chatUrl);
+    
+    if (!page || page.isClosed()) {
+      console.log(`[generate] Existing page not found, navigating fresh…`);
+      page = await getPage(chatUrl);
+      await page.goto(chatUrl, { waitUntil: ["domcontentloaded", "networkidle2"], timeout: 60000 });
+      await waitForInput(page, 30000);
+    } else {
+      console.log(`[generate] Reusing existing page: ${page.url()}`);
+      await page.bringToFront();
+      await sleep(1000);
+    }
 
     let currentUrl = page.url();
     console.log(`[generate] On page: ${currentUrl}`);
 
-    // If chat expired, recreate with original prompt
-    if (currentUrl === GEMINI_BASE || currentUrl.endsWith('/app') || currentUrl.includes("signin")) {
+    // If chat expired (redirected to /app), recreate it
+    if (currentUrl === GEMINI_BASE || currentUrl.endsWith('/app')) {
       console.log(`[generate] Chat expired. Re-creating with original prompt…`);
-
+      
       const previousUrl = page.url();
       await pastePrompt(page, session.originalPrompt || second_prompt);
       await page.keyboard.press("Enter");
-
+      
       const newChatUrl = await waitForChatUrl(page, previousUrl, 60000);
       if (newChatUrl && newChatUrl !== GEMINI_BASE) {
         chatUrl = newChatUrl;
@@ -1182,7 +1196,7 @@ app.post("/generate", async (req, res) => {
       } else {
         throw new Error('Failed to recreate chat session');
       }
-
+      
       await sleep(1500);
       currentUrl = page.url();
     }
@@ -1239,10 +1253,10 @@ app.post("/generate", async (req, res) => {
 
     sessions.delete(session_id);
     saveSessions();
-
-    // Clean up browser
+    
+    // NOW we can clean up browser since we're done with the whole flow
     if (browser) { try { await browser.disconnect(); } catch {} browser = null; }
-
+    
     sendImageFile(res, imgPath, { "X-Image-Brightness": brightness, "X-Chat-Url": finalUrl });
     console.log("[generate] Done ✓");
 
@@ -1255,7 +1269,6 @@ app.post("/generate", async (req, res) => {
     releaseChrome();
   }
 });
-
 // ─────────────────────────────────────────────
 //  POST /edit
 // ─────────────────────────────────────────────
