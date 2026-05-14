@@ -542,8 +542,25 @@ app.post("/generate", async (req, res) => {
     await pastePrompt(page, fullPrompt);
     await page.keyboard.press("Enter");
     console.log("[generate] Enter pressed ✓");
+    await pastePrompt(page, fullPrompt);
+    await page.keyboard.press("Enter");
+    console.log("[generate] Enter pressed ✓");
+    
+    // DEBUG: Screenshot after sending prompt
+    const afterPromptPath = path.join(CFG.OUTPUT_DIR, `debug_after_prompt_${Date.now()}.png`);
+    await page.screenshot({ path: afterPromptPath });
+    console.log(`[generate] Debug screenshot: ${afterPromptPath}`);
 
-    const dataUrl = await imagePromise;
+    let dataUrl;
+    try {
+      dataUrl = await imagePromise;
+    } catch (e) {
+      console.log(`[generate] Image detection failed: ${e.message}`);
+      const failPath = path.join(CFG.OUTPUT_DIR, `debug_image_fail_${Date.now()}.png`);
+      await page.screenshot({ path: failPath, fullPage: true });
+      console.log(`[generate] Fail screenshot: ${failPath}`);
+      throw e;
+    }
     console.log("[generate] Image received ✓");
 
     const imgPath = saveImage(dataUrl, safeName);
