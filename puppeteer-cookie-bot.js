@@ -26,7 +26,7 @@ const CFG = {
   SESSION_TTL_MS: 7200000,
   CHROME_PORT: 9222,
   USER_DATA_DIR: path.join(__dirname, "chrome-profile"),
-  CHROME_PATH: process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/google-chrome-stable",
+  CHROME_PATH: process.env.PUPPETEER_EXECUTABLE_PATH || require("puppeteer").executablePath(),
 };
 
 
