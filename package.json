@@ -1,25 +1,22 @@
-﻿{
-    "name":  "poster-bot",
-    "version":  "10.0.0",
-    "description":  "",
-    "main":  "puppeteer-cookie-bot.js",
-    "scripts":  {
-                    "start":  "node puppeteer-cookie-bot.js",
-                    "test":  "echo \"Error: no test specified\" \u0026\u0026 exit 1",
-                    "postinstall":  "npx puppeteer browsers install chrome"
-                },
-    "keywords":  [
-
-                 ],
-    "author":  "",
-    "license":  "ISC",
-    "dependencies":  {
-                         "@google/generative-ai":  "^0.24.1",
-                         "cors":  "^2.8.6",
-                         "express":  "^5.2.1",
-                         "puppeteer":  "^24.37.5",
-                         "puppeteer-extra":  "^3.3.6",
-                         "puppeteer-extra-plugin-stealth":  "^2.11.2",
-                         "sharp":  "^0.34.5"
-                     }
+{
+  "name": "poster-bot",
+  "version": "10.0.0",
+  "description": "",
+  "main": "puppeteer-cookie-bot.js",
+  "scripts": {
+    "start": "node puppeteer-cookie-bot.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "puppeteer": "^24.37.5",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "sharp": "^0.34.5"
+  }
 }
