@@ -1,0 +1,30 @@
+﻿# Dependencies
+node_modules/
+package-lock.json
+
+# Output files
+output/
+logos/
+*.png
+*.jpg
+*.jpeg
+
+# Debug
+debug_screenshots/
+
+# Chrome profile - keep only essential auth files
+chrome-profile/*/
+chrome-profile/Default/*/
+!chrome-profile/Default/Network/
+!chrome-profile/Default/Local Storage/
+!chrome-profile/Default/Preferences
+!chrome-profile/Default/Login Data
+!chrome-profile/Local State
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
