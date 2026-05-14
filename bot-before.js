@@ -1,8 +1,8 @@
-"use strict";
+﻿"use strict";
 
 // ============================================================
-//  Gemini Poster Bot API  v11.1  — Automated Google Login
-//  Logs into Gemini automatically using chrome-profile or cookies
+//  Gemini Poster Bot API  v11.0  â€” Automated Google Login
+//  Logs into Gemini automatically using credentials
 // ============================================================
 
 const express = require("express");
@@ -14,9 +14,9 @@ const cors = require("cors");
 
 puppeteer.use(StealthPlugin());
 
-// ───────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //  CONFIG
-// ───────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const CFG = {
   PORT: process.env.PORT || 3000,
   GEMINI_BASE: "https://gemini.google.com/app",
@@ -29,9 +29,11 @@ const CFG = {
   CHROME_PATH: process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/google-chrome-stable",
 };
 
-// ───────────────────────────────────────────────────────────
+
+
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //  INIT
-// ───────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));
@@ -47,14 +49,16 @@ const sessions = new Map();
 let browser = null;
 let chromeProc = null;
 let chromePid = null;
-
-// ───────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  COOKIE LOADER
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //  COOKIE LOADER (handles both JSON and Netscape)
-// ───────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const loadCookies = () => {
   try {
-    // Try loading from cookies.txt first
-    const cookiePath = path.join(__dirname, "cookies.txt");
+    // Try loading from gemini-cookies.json first
+    const cookiePath = path.join(__dirname, "gemini-cookies.json");
     if (fs.existsSync(cookiePath)) {
       const content = fs.readFileSync(cookiePath, "utf8").trim();
       
@@ -66,24 +70,11 @@ const loadCookies = () => {
       
       // Otherwise parse as JSON
       const cookies = JSON.parse(content);
-      console.log(`[Cookies] Loaded ${cookies.length} cookies from cookies.txt (JSON)`);
-      return cookies;
-    }
-    
-    // Fallback to gemini-cookies.json
-    const jsonPath = path.join(__dirname, "gemini-cookies.json");
-    if (fs.existsSync(jsonPath)) {
-      const content = fs.readFileSync(jsonPath, "utf8").trim();
-      if (content.startsWith("#")) {
-        console.log("[Cookies] Detected Netscape format in gemini-cookies.json, parsing...");
-        return parseNetscapeCookies(content);
-      }
-      const cookies = JSON.parse(content);
       console.log(`[Cookies] Loaded ${cookies.length} cookies from gemini-cookies.json (JSON)`);
       return cookies;
     }
   } catch (e) {
-    console.log("[Cookies] Failed to load cookies:", e.message);
+    console.log("[Cookies] Failed to load gemini-cookies.json:", e.message);
   }
   
   return [];
@@ -107,7 +98,6 @@ const parseNetscapeCookies = (cookieString) => {
   }
   return cookies;
 };
-
 const setGeminiCookies = async (page) => {
   const cookies = loadCookies();
   if (!cookies.length) {
@@ -132,18 +122,17 @@ const setGeminiCookies = async (page) => {
     }
   }
   
-  console.log("[Cookies] Cookies set ✓");
+  console.log("[Cookies] Cookies set âœ“");
   return true;
 };
-
-// ───────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //  UTILITIES
-// ───────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// ───────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //  CHROME LIFECYCLE
-// ───────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const killChrome = async () => {
   if (chromePid) {
     try { process.kill(chromePid, "SIGKILL"); } catch {}
@@ -236,32 +225,19 @@ const getPage = async (targetUrl) => {
   return page;
 };
 
-// ───────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //  GOOGLE LOGIN
-// ───────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  GOOGLE LOGIN (Cookie-based only)
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const loginToGoogle = async (page) => {
-  console.log("[Login] Checking chrome-profile session...");
+  console.log("[Login] Setting cookies for Gemini...");
 
-  // Navigate to Gemini first to check if profile is already logged in
-  await page.goto(CFG.GEMINI_BASE, { waitUntil: "domcontentloaded", timeout: 30000 });
-  await sleep(3000);
-
-  const isProfileLoggedIn = await page.evaluate(() => {
-    const t = document.body.innerText;
-    return !t.includes("Sign in") && !t.includes("Sign in to Gemini") && !t.includes("Couldn't sign you in") && t.includes("Gemini");
-  });
-
-  if (isProfileLoggedIn) {
-    console.log("[Login] Already signed in via chrome-profile ✓");
-    return true;
-  }
-
-  console.log("[Login] Profile not authenticated, trying cookies.txt...");
-
-  // Set cookies from cookies.txt
+  // Set cookies
   const cookiesSet = await setGeminiCookies(page);
   if (!cookiesSet) {
-    throw new Error("No cookies available - export cookies from your browser first");
+    throw new Error("No cookies available â€” export cookies from your browser first");
   }
 
   // Refresh to apply cookies
@@ -271,37 +247,39 @@ const loginToGoogle = async (page) => {
   // Check if signed in
   const isSignedIn = await page.evaluate(() => {
     const bodyText = document.body.innerText;
-    return !bodyText.includes("Sign in") &&
-           !bodyText.includes("Sign in to Gemini") &&
+    return !bodyText.includes("Sign in") && 
+           !bodyText.includes("Sign in to Gemini") && 
            !bodyText.includes("Couldn't sign you in") &&
            bodyText.includes("Gemini");
   });
 
   if (!isSignedIn) {
-    console.log("[Login] WARNING: Cookies may be expired - please re-export from browser");
+    console.log("[Login] WARNING: Cookies may be expired â€” please re-export from browser");
+    // Take screenshot for debugging
     const screenshotPath = path.join(CFG.OUTPUT_DIR, `login_check_${Date.now()}.png`);
     await page.screenshot({ path: screenshotPath });
     console.log(`[Login] Screenshot saved: ${screenshotPath}`);
-
+    
+    // Still continue â€” sometimes it works after a moment
     await sleep(5000);
-
+    
     const recheck = await page.evaluate(() => {
       const bodyText = document.body.innerText;
       return !bodyText.includes("Sign in") && !bodyText.includes("Sign in to Gemini");
     });
-
+    
     if (!recheck) {
-      throw new Error("Not signed in - cookies expired or invalid");
+      throw new Error("Not signed in â€” cookies expired or invalid");
     }
   }
 
-  console.log("[Login] Signed in with cookies ✓");
+  console.log("[Login] Signed in with cookies âœ“");
   return true;
 };
 
-// ═══════════════════════════════════════════════════════════
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //  GEMINI HELPERS
-// ═══════════════════════════════════════════════════════════
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const waitForInput = (page, timeout = 30000) =>
   page.waitForSelector('div[contenteditable="true"]', { visible: true, timeout });
 
@@ -366,7 +344,7 @@ const waitForNewImage = async (page, knownSrcs, timeoutMs = 180000) => {
   const deadline = Date.now() + timeoutMs;
   const knownSet = new Set(knownSrcs);
 
-  console.log(`[waitForNewImage] Starting — known=${knownSrcs.length}, timeout=${timeoutMs / 1000}s`);
+  console.log(`[waitForNewImage] Starting â€” known=${knownSrcs.length}, timeout=${timeoutMs / 1000}s`);
 
   await page.evaluate(() => {
     window.__newImgSrc = null;
@@ -426,9 +404,9 @@ const saveImage = (dataUrl, label) => {
   return file;
 };
 
-// ═══════════════════════════════════════════════════════════
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //  IMAGE PROCESSING
-// ═══════════════════════════════════════════════════════════
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const getLogoPaths = () => {
   const r = {};
   for (const [k, f] of Object.entries(CFG.LOGOS)) {
@@ -474,10 +452,13 @@ const pickLogo = (brightness, logos, preferred) => {
   return brightness === "dark" ? logos.white || logos.blue || logos.black : logos.blue || logos.black || logos.white;
 };
 
-// ═══════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  ROUTES
-// ═══════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  POST /generate_prompt
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post("/generate_prompt", async (req, res) => {
   req.setTimeout(300000);
   res.setTimeout(300000);
@@ -502,7 +483,7 @@ app.post("/generate_prompt", async (req, res) => {
     const previousUrl = page.url();
     await pastePrompt(page, prompt);
     await page.keyboard.press("Enter");
-    console.log("[generate_prompt] Enter pressed ✓");
+    console.log("[generate_prompt] Enter pressed âœ“");
 
     const chatUrl = await waitForChatUrl(page, previousUrl, 60000);
     if (!chatUrl || chatUrl === CFG.GEMINI_BASE)
@@ -513,7 +494,7 @@ app.post("/generate_prompt", async (req, res) => {
     const sessionId = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     sessions.set(sessionId, { chatUrl, originalPrompt: prompt, createdAt: Date.now() });
 
-    console.log(`[generate_prompt] Done → session ${sessionId}`);
+    console.log(`[generate_prompt] Done â†’ session ${sessionId}`);
     res.json({ success: true, session_id: sessionId, chat_url: chatUrl });
 
   } catch (err) {
@@ -523,6 +504,9 @@ app.post("/generate_prompt", async (req, res) => {
   }
 });
 
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  POST /generate
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post("/generate", async (req, res) => {
   req.setTimeout(600000);
   res.setTimeout(600000);
@@ -558,7 +542,7 @@ app.post("/generate", async (req, res) => {
 
     await pastePrompt(page, fullPrompt);
     await page.keyboard.press("Enter");
-    console.log("[generate] Enter pressed ✓");
+    console.log("[generate] Enter pressed âœ“");
     
     // DEBUG: Screenshot after sending prompt
     const afterPromptPath = path.join(CFG.OUTPUT_DIR, `debug_after_prompt_${Date.now()}.png`);
@@ -575,7 +559,7 @@ app.post("/generate", async (req, res) => {
       console.log(`[generate] Fail screenshot: ${failPath}`);
       throw e;
     }
-    console.log("[generate] Image received ✓");
+    console.log("[generate] Image received âœ“");
 
     const imgPath = saveImage(dataUrl, safeName);
     const brightness = await imageBrightness(imgPath);
@@ -592,7 +576,7 @@ app.post("/generate", async (req, res) => {
       chat_url: finalUrl,
     });
 
-    console.log("[generate] Done ✓");
+    console.log("[generate] Done âœ“");
 
   } catch (err) {
     console.error("[generate] ERROR:", err.message);
@@ -602,6 +586,9 @@ app.post("/generate", async (req, res) => {
   }
 });
 
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  POST /addlogo
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post("/addlogo", async (req, res) => {
   req.setTimeout(60000);
   try {
@@ -649,6 +636,9 @@ app.post("/addlogo", async (req, res) => {
   }
 });
 
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  GET /debug_screenshots
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/debug_screenshots", (req, res) => {
   try {
     if (!fs.existsSync(CFG.OUTPUT_DIR)) return res.json({ success: true, screenshots: [], count: 0 });
@@ -667,16 +657,19 @@ app.get("/debug_screenshots", (req, res) => {
   }
 });
 
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+//  GET /status
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/status", (req, res) => {
-  res.json({ success: true, status: "running", version: "11.1-auto-login", timestamp: new Date().toISOString() });
+  res.json({ success: true, status: "running", version: "11.0-auto-login", timestamp: new Date().toISOString() });
 });
 
-// ═══════════════════════════════════════════════════════════
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //  START SERVER
-// ═══════════════════════════════════════════════════════════
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const server = app.listen(CFG.PORT, "0.0.0.0", () => {
   console.log("===========================================");
-  console.log("  Gemini Poster Bot API  v11.1 (Auto-Login)");
+  console.log("  Gemini Poster Bot API  v11.0 (Auto-Login)");
   console.log(`  Listening on http://0.0.0.0:${CFG.PORT}`);
   console.log("===========================================");
 });
